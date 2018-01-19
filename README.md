@@ -1,0 +1,2 @@
+# HDNNP-LAMMPS
+interface program
