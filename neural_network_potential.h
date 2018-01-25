@@ -3,12 +3,14 @@
 #define EIGEN_DONT_PARALLELIZE
 #define EIGEN_MPL2_ONLY
 
+#include <iostream>
 #include <string>
 #include <vector>
 #include <Eigen/Core>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/foreach.hpp>
+#include <boost/range/combine.hpp>
 
 #ifndef INCLUDED_NNP_H_
 #define INCLUDED_NNP_H_
@@ -40,12 +42,19 @@ public:
 class NNP
 {
 private:
-  vector<Layer> layer;
+  const int nlayer;
+  const string element;
 public:
-  void parse_xml(const string);
-  MatrixXd energy(const MatrixXd& G);
-  MatrixXd forces(const MatrixXd& dG);
+  vector<Layer> layers;
+  NNP(const int& n, const string& element);
+  double energy(MatrixXd m);
+  VectorXd forces(MatrixXd m);
 };
+
+template <typename T>
+vector<T> split_cast(const string& str);
+
+vector<NNP> parse_xml(const string&);
 
 
 #endif

@@ -42,8 +42,55 @@ MatrixXd Layer::feedforward(MatrixXd& input){
 }
 
 
-void NNP::parse_xml(const string){}
+NNP::NNP(const int& n, const string& element)
+  : nlayer(n), element(element){}
 
-MatrixXd NNP::energy(const MatrixXd& G){}
+double NNP::energy(MatrixXd m){
+  BOOST_FOREACH (Layer& layer, layers){
+    m = layer.feedforward(m);
+  }
+  return m.sum();
+}
 
-MatrixXd NNP::forces(const MatrixXd& dG){}
+VectorXd NNP::forces(MatrixXd m){}
+
+template <typename T>
+vector<T> split_cast(const string& str){
+  istringstream ss(str);
+  return vector<T>{istream_iterator<T>(ss), istream_iterator<T>()};
+}
+
+
+vector<NNP> parse_xml(const string& xml_file){
+  ptree pt;
+  int nelement;
+  string element;
+  int depth;
+  int in_size;
+  int out_size;
+  vector<double> weight;
+  vector<double> bias;
+  string activation;
+
+  read_xml(xml_file, pt);
+  nelement = pt.get<int>("HDNNP.element.number");
+  depth = pt.get<int>("HDNNP.NN.depth");
+  vector<NNP> masters;
+  
+  BOOST_FOREACH (const ptree::value_type& nnp_xml, pt.get_child("HDNNP.NN.items")){
+    element = nnp_xml.second.get<string>("symbol");
+    NNP nnp = NNP(depth, element);
+    BOOST_FOREACH (const ptree::value_type& layer_xml, nnp_xml.second.get_child("items")){
+      in_size = layer_xml.second.get<int>("in_size");
+      out_size = layer_xml.second.get<int>("out_size");
+      weight = split_cast<double>(layer_xml.second.get<string>("weight"));
+      bias = split_cast<double>(layer_xml.second.get<string>("bias"));
+      activation = layer_xml.second.get<string>("activation");
+      Layer layer = Layer(in_size, out_size, weight, bias, activation);
+      nnp.layers.push_back(layer);
+    }
+    masters.push_back(nnp);
+  }
+
+  return masters;
+}
