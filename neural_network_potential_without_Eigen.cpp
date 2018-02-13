@@ -121,21 +121,6 @@ void NNP::feedforward(double**& features, double*& energy, double**& dE_dG,
   // dE_dG = deriv_hidden(double***)をdouble**に
 }
 
-template <typename T>
-T* split_cast(const string& str, const int& size) {
-  int i = 0;
-  istringstream ss(str);
-  istream_iterator<T> isi(ss);
-  istream_iterator<T> eos;
-  T* ret = (T*)malloc(sizeof(T) * size);
-  while (isi != eos) {
-    ret[i] = *isi;
-    ++i;
-    ++isi;
-  }
-  return ret;
-}
-
 vector<NNP> parse_xml(const string& xml_file) {
   int i, j;
   ptree root_pt, nnp_pt, layer_pt;
@@ -147,7 +132,7 @@ vector<NNP> parse_xml(const string& xml_file) {
   double** weight;
   double* weight_row;
   double* bias;
-  istringstream ss;
+  // stringstream ss;
   istream_iterator<double> isi;
   string activation;
 
@@ -168,8 +153,8 @@ vector<NNP> parse_xml(const string& xml_file) {
       // set weight param
       weight = (double**)malloc(sizeof(double*) * in_size);
       weight_row = (double*)malloc(sizeof(double) * in_size * out_size);
-      ss = istringstream(layer_pt.get<string>("weight"));
-      isi = istream_iterator<double>(ss);
+      stringstream ss_weight(layer_pt.get<string>("weight"));
+      isi = istream_iterator<double>(ss_weight);
       for (i = 0; i < in_size; ++i) {
         weight[i] = weight_row + i * out_size;
         for (j = 0; j < out_size; ++j) {
@@ -180,8 +165,8 @@ vector<NNP> parse_xml(const string& xml_file) {
 
       // set bias param
       bias = (double*)malloc(sizeof(double) * out_size);
-      ss = istringstream(layer_pt.get<string>("bias"));
-      isi = istream_iterator<double>(ss);
+      stringstream ss_bias(layer_pt.get<string>("weight"));
+      isi = istream_iterator<double>(ss_bias);
       for (i = 0; i < out_size; ++i) {
         bias[i] = *isi;
         ++isi;

@@ -6,6 +6,7 @@
 #include <math.h>
 #include <cmath>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 // #include <Eigen/Core>
