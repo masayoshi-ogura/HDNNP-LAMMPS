@@ -13,6 +13,8 @@ double Layer::sigmoid(double& x) {
 
 double Layer::identity(double& x) { return 1; }
 
+Layer::Layer() {}
+
 Layer::Layer(const int& in, const int& out, double** w, double* b,
              const string& act) {
   in_size = in;
@@ -72,14 +74,14 @@ void Layer::feedforward(double**& input, double***& deriv_input,
   free(deriv_input);
 }
 
-NNP::NNP(const int& n, const string& e) {
-  nlayer = n;
+NNP::NNP(const int& depth, const string& e) {
   element = e;
+  layers = vector<Layer>(depth);
 }
 
 void NNP::feedforward(double**& features, double*& energy, double**& dE_dG,
                       const int& natom, const int& nfeature) {
-  int i,j,k;
+  int i, j, k;
   double** input = (double**)malloc(sizeof(double*) * natom);
   double* input_row = (double*)malloc(sizeof(double) * natom * nfeature);
   double*** deriv_input = (double***)malloc(sizeof(double**) * natom);
@@ -177,6 +179,98 @@ vector<NNP> parse_xml(const string& xml_file) {
       nnp.layers.push_back(layer);
     }
     masters.push_back(nnp);
+  }
+
+  return masters;
+}
+
+vector<string> split(const string& input, char delimiter) {
+  stringstream ss(input);
+  string item;
+  vector<string> result;
+  while (getline(ss, item, delimiter)) {
+    item.erase(remove(item.begin(), item.end(), '\n'), item.end());
+    item.erase(remove(item.begin(), item.end(), '\r'), item.end());
+    result.push_back(item);
+  }
+  return result;
+}
+
+vector<NNP> parse_txt(const string& txt_file) {
+  int i, j, k, l, nelement, depth, in_size, out_size;
+  double** weight;
+  double *weight_row, *bias;
+  string row, element, activation;
+  ifstream ifs(txt_file);
+  vector<string> elements, strs;
+  vector<NNP> masters;
+
+  if (ifs.fail()) {
+    cerr << "File do not exist." << endl;
+    exit(0);
+  }
+
+  // #1: comment
+  getline(ifs, row);
+  // #2: the number of elements
+  getline(ifs, row);
+  nelement = stoi(row);
+  // #3: the symbol of elements
+  getline(ifs, row);
+  elements = split(row, ' ');
+  // #4: the depth of NNP
+  getline(ifs, row);
+  depth = stoi(row);
+
+  for (i = 0; i < nelement; ++i) {
+    NNP nnp = NNP(depth, elements[i]);
+    masters.push_back(nnp);
+  }
+
+  while (getline(ifs, row)) {  // skip empty line
+    // parse each block
+
+    // #1: layer structure and activation function
+    getline(ifs, row);
+    strs = split(row, ' ');
+    element = strs[0];
+    j = stoi(strs[1]) - 1;
+    in_size = stoi(strs[2]);
+    out_size = stoi(strs[3]);
+    activation = strs[4];
+
+    // #2: comment
+    getline(ifs, row);
+
+    // #3~n+2: weight
+    weight = (double**)malloc(sizeof(double*) * in_size);
+    weight_row = (double*)malloc(sizeof(double) * in_size * out_size);
+    for (k = 0; k < in_size; ++k) {
+      weight[k] = weight_row + k * out_size;
+      getline(ifs, row);
+      strs = split(row, ' ');
+      for (l = 0; l < out_size; ++l) {
+        weight[k][l] = stod(strs[l]);
+      }
+    }
+
+    // #n+3: comment
+    getline(ifs, row);
+
+    // #n+4: bias
+    bias = (double*)malloc(sizeof(double) * out_size);
+    getline(ifs, row);
+    strs = split(row, ' ');
+    for (l = 0; l < out_size; ++l) {
+      bias[l] = stod(strs[l]);
+    }
+
+    Layer layer = Layer(in_size, out_size, weight, bias, activation);
+    for (i = 0; i < nelement; ++i) {
+      if (masters[i].element == element) {
+        masters[i].layers[j] = layer;
+      }
+    }
   }
 
   return masters;

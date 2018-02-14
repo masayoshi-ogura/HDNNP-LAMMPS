@@ -5,6 +5,7 @@
 
 #include <math.h>
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -35,6 +36,7 @@ class Layer {
   double identity(double& x);
 
  public:
+  Layer();
   Layer(const int& in, const int& out, double** w, double* b,
         const string& act);
   void feedforward(double**& input, double***& deriv_input, double**& output,
@@ -45,15 +47,18 @@ class Layer {
 class NNP {
  private:
   int nlayer;
-  string element;
 
  public:
+  string element;
   vector<Layer> layers;
-  NNP(const int& n, const string& e);
+  NNP(const int& depth, const string& e);
   void feedforward(double**& features, double*& energy, double**& dE_dG,
                    const int& natom, const int& nfeature);
 };
 
 vector<NNP> parse_xml(const string&);
+
+vector<string> split(const string& input, char delimiter);
+vector<NNP> parse_txt(const string&);
 
 #endif
