@@ -156,6 +156,15 @@ void PairNNP::compute(int eflag, int vflag) {
             f[j][1] += -F(jj * 3 + 1);
             f[j][2] += -F(jj * 3 + 2);
         }
+
+        memory->destroy(Gi);
+        memory->destroy(dEi_dGi);
+        memory->destroy(dGi_drj);
+        memory->destroy(Rij);
+        memory->destroy(tanhij);
+        memory->destroy(cosijk);
+        memory->destroy(dRij);
+        memory->destroy(dcosijk);
     }
 }
 
