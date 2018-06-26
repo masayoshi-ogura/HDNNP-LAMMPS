@@ -5,56 +5,65 @@
 
 #include <iostream>
 #include <string>
-#include <vector>
 #include <Eigen/Core>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/xml_parser.hpp>
-#include <boost/foreach.hpp>
-#include <boost/range/combine.hpp>
 
 #ifndef INCLUDED_NNP_H_
 #define INCLUDED_NNP_H_
 
 using namespace std;
 using namespace Eigen;
-using namespace boost::property_tree;
 
-class Layer
-{
+class Layer {
 private:
-  const int in_size;
-  const int out_size;
-  const MatrixXd weight;
-  const RowVectorXd bias;
-  void set_activation(const string& act);
-  typedef MatrixXd (Layer::*FuncPtr)(const MatrixXd&);
-  FuncPtr activation;
-  MatrixXd tanh(const MatrixXd& input);
-  MatrixXd sigmoid(const MatrixXd& input);
-  MatrixXd identity(const MatrixXd& input);
+    void set_activation(char *);
+
+    typedef void (Layer::*FuncPtr)(MatrixXd &);
+
+    typedef void (Layer::*FuncPtr2)(MatrixXd &, MatrixXd &);
+
+    FuncPtr activation;
+
+    FuncPtr2 activation2;
+
+    void tanh(MatrixXd &);
+
+    void deriv_tanh(MatrixXd &, MatrixXd &);
+
+    void sigmoid(MatrixXd &);
+
+    void deriv_sigmoid(MatrixXd &, MatrixXd &);
+
+    void identity(MatrixXd &);
+
+    void deriv_identity(MatrixXd &, MatrixXd &);
+
 public:
-  Layer(const int& in, const int& out);
-  Layer(const int& in, const int& out, vector<double>& w, vector<double>& b, const string& act);
-  MatrixXd feedforward(MatrixXd& input);
+    MatrixXd weight;
+    VectorXd bias;
+
+    Layer(int, int);
+
+    Layer(int, int, double *, double *, char *);
+
+    void feedforward(MatrixXd &);
+
+    void feedforward2(MatrixXd &, MatrixXd &);
 };
 
 
-class NNP
-{
-private:
-  const int nlayer;
-  const string element;
+class NNP {
 public:
-  vector<Layer> layers;
-  NNP(const int& n, const string& element);
-  double energy(MatrixXd m);
-  VectorXd forces(MatrixXd m);
+    int depth;
+    Layer **layers;
+
+    NNP();
+
+    NNP(int);
+
+    void energy(int, double *, double &);
+
+    void deriv(int, double *, double *);
 };
-
-template <typename T>
-vector<T> split_cast(const string& str);
-
-vector<NNP> parse_xml(const string&);
 
 
 #endif
