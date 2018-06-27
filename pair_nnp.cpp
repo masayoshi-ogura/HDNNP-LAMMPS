@@ -542,7 +542,7 @@ void PairNNP::G4(int iparam, int numneigh, int **iG3s, VectorXd &R, VectorXd &ta
     rad1 = (-eta * R.array().pow(2)).exp() * tanh.array().pow(3);
     rad2 = (-eta * R.array().pow(2)).exp() * tanh.array().pow(2) *
            (-2.0 * eta * R.array() * tanh.array() + 3.0 / Rc * (tanh.array().pow(2) - 1.0));
-    g = ((coeffs * ang.array().pow(zeta)).colwise() * rad1.array()).rowwise() * rad1.transpose().array();
+    g = ((0.5 * coeffs * ang.array().pow(zeta)).colwise() * rad1.array()).rowwise() * rad1.transpose().array();
     coeff1 = ((coeffs * ang.array().pow(zeta)).colwise() * rad2.array()).rowwise() * rad1.transpose().array();
     coeff2 = ((zeta * lambda * coeffs * ang.array().pow(zeta - 1)).colwise() * rad1.array()).rowwise() *
              rad1.transpose().array();
