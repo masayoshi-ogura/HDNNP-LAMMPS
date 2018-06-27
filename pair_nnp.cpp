@@ -86,14 +86,15 @@ void PairNNP::compute(int eflag, int vflag) {
     // only for eflag = vflag = 0
 
     int i, j, ii, jj, inum, jnum;
-    int a, b, c;
-    int itype, jtype, iparam, iiparam;
+    int itype, jtype, iparam;
     // double evdwl;
     int *ilist, *jlist, *numneigh, **firstneigh;
-    double *Rij, *tanhij, **cosijk, **dRij, ***dcosijk;
-    double *Gi, *dEi_dGi, ***dGi_drj;
-    VectorXd dE_dG, F;
-    MatrixXd dG_dr;
+    int *iG2s, **iG3s;
+    VectorXd R, tanh, dR[3];
+    MatrixXd cos, dcos[3];
+    VectorXd G, dE_dG, F[3];
+    double *G_raw, ***dG_dr_raw;
+    MatrixXd dG_dx, dG_dy, dG_dz;
 
     // evdwl = 0.0;
     // if (eflag || vflag) ev_setup(eflag, vflag);
@@ -114,57 +115,54 @@ void PairNNP::compute(int eflag, int vflag) {
         jlist = firstneigh[i];  // indices of J neighbors of I atom
         jnum = numneigh[i];     // # of J neighbors of I atom
 
-        memory->create(Gi, nfeature, "pair:Gi");
-        memory->create(dEi_dGi, nfeature, "pair:dEi_dGi");
-        memory->create(dGi_drj, nfeature, jnum, 3, "pair:dGi_drj");
-        memory->create(Rij, jnum, "pair:Rij");
-        memory->create(tanhij, jnum, "pair:tanhij");
-        memory->create(cosijk, jnum, jnum, "pair:cosijk");
-        memory->create(dRij, jnum, 3, "pair:dRij");
-        memory->create(dcosijk, jnum, jnum, 3, "pair:dcosijk");
-        for (a = 0; a < nfeature; a++) {
-            Gi[a] = 0;
-            for (b = 0; b < jnum; b++)
-                for (c = 0; c < 3; c++) dGi_drj[a][b][c] = 0;
-        }
 
-        geometry(i, jlist, jnum, Rij, tanhij, cosijk, dRij, dcosijk);
+        geometry(i, jlist, jnum, R, tanh, cos, dR, dcos);
 
+        memory->create(G_raw, nfeature, "G");
+        memory->create(dG_dr_raw, 3, jnum, nfeature, "dG_dr");
+        for (int a = 0; a < nfeature; a++) G_raw[a] = 0.0;
+        for (int a = 0; a < 3; a++)
+            for (int b = 0; b < jnum; b++)
+                for (int c = 0; c < nfeature; c++) dG_dr_raw[a][b][c] = 0.0;
+
+        iG2s = new int[jnum];
+        iG3s = new int*[jnum];
+        for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
+        feature_index(itype, jlist, jnum, iG2s, iG3s);
         for (iparam = 0; iparam < nparams; iparam++) {
-            if (iparam < nG1params) {
-                iiparam = iparam;
-                G1(i, jlist, jnum, tanhij, dRij, Gi, dGi_drj, iiparam);
-            } else if (iparam < nG1params + nG2params) {
-                iiparam = iparam - nG1params;
-                G2(i, jlist, jnum, Rij, tanhij, dRij, Gi, dGi_drj, iiparam);
-            } else if (iparam < nG1params + nG2params + nG4params) {
-                iiparam = iparam - nG1params - nG2params;
-                G4(i, jlist, jnum, Rij, tanhij, cosijk, dRij, dcosijk, Gi, dGi_drj, iiparam);
-            }
+            if (iparam < nG1params) G1(iparam, jnum, iG2s, tanh, dR, G_raw, dG_dr_raw);
+            else if (iparam < nG1params + nG2params)
+                G2(iparam - nG1params, jnum, iG2s, R, tanh, dR, G_raw, dG_dr_raw);
+            else if (iparam < nG1params + nG2params + nG4params)
+                G4(iparam - nG1params - nG2params, jnum, iG3s, R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
         }
+        delete[] iG2s;
+        for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
+        delete[] iG3s;
 
         // if (eflag) masters[itype]->energy(nfeature, Gi, evdwl);
-        masters[itype]->deriv(nfeature, Gi, dEi_dGi);
 
-        dE_dG = Map<VectorXd>(&dEi_dGi[0], nfeature);
-        dG_dr = Map<MatrixXd>(&dGi_drj[0][0][0], jnum * 3, nfeature);
-        F.noalias() = dG_dr * dE_dG;
+        G = Map<VectorXd>(G_raw, nfeature);
+        memory->destroy(G_raw);
+
+        dG_dx = Map<MatrixXd>(&dG_dr_raw[0][0][0], nfeature, jnum);
+        dG_dy = Map<MatrixXd>(&dG_dr_raw[1][0][0], nfeature, jnum);
+        dG_dz = Map<MatrixXd>(&dG_dr_raw[2][0][0], nfeature, jnum);
+        memory->destroy(dG_dr_raw);
+
+        masters[itype]->deriv(G, dE_dG);
+
+        F[0].noalias() = dE_dG * dG_dx;
+        F[1].noalias() = dE_dG * dG_dy;
+        F[2].noalias() = dE_dG * dG_dz;
 
         for (jj = 0; jj < jnum; jj++) {
             j = jlist[jj];
-            f[j][0] += -F(jj * 3 + 0);
-            f[j][1] += -F(jj * 3 + 1);
-            f[j][2] += -F(jj * 3 + 2);
+            f[j][0] += -F[0](jj);
+            f[j][1] += -F[1](jj);
+            f[j][2] += -F[2](jj);
         }
 
-        memory->destroy(Gi);
-        memory->destroy(dEi_dGi);
-        memory->destroy(dGi_drj);
-        memory->destroy(Rij);
-        memory->destroy(tanhij);
-        memory->destroy(cosijk);
-        memory->destroy(dRij);
-        memory->destroy(dcosijk);
     }
 }
 
@@ -437,132 +435,129 @@ void PairNNP::setup_params() {}
 /* ---------------------------------------------------------------------- */
 
 void
-PairNNP::geometry(int cnt, int *neighlist, int numneigh, double *R, double *tanh, double **cos, double **dR,
-                  double ***dcos) {
-    int i, j, n;
+PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R, VectorXd &tanh, MatrixXd &cos, VectorXd *dR,
+                  MatrixXd *dcos) {
+    int i, n;
     double **x = atom->x;
-    double **r;
-    memory->create(r, numneigh, 3, "r");
+    MatrixXd r, dR_;
 
+    double **r_;
+    memory->create(r_, numneigh, 3, "r_");
     for (i = 0; i < numneigh; i++) {
         n = neighlist[i];
-        r[i][0] = x[n][0] - x[cnt][0];
-        r[i][1] = x[n][1] - x[cnt][1];
-        r[i][2] = x[n][2] - x[cnt][2];
-        R[i] = sqrt(r[i][0] * r[i][0] + r[i][1] * r[i][1] + r[i][2] * r[i][2]);
-
-        for (j = 0; j < nG1params; j++) tanh[i] = std::tanh(1.0 - R[i] / G1params[j][0]);
-        // if # of parameter Rc > 1, type of tanh is `double **`
-        // and in each symmetry function(G1,dG1...dG4), add line `double* tanh = tanh[iRc]`
-        // for (j = 0; j<nG1params; j++) tanh[j][i] = tanh(1.0 - R[i] / nG1params[j][0]);
-
-        dR[i][0] = r[i][0] / R[i];
-        dR[i][1] = r[i][1] / R[i];
-        dR[i][2] = r[i][2] / R[i];
+        r_[i][0] = x[n][0] - x[cnt][0];
+        r_[i][1] = x[n][1] - x[cnt][1];
+        r_[i][2] = x[n][2] - x[cnt][2];
     }
 
+    r = Map<MatrixXd>(&r_[0][0], 3, numneigh);
+    R = r.colwise().norm();
+    for (i = 0; i < nG1params; i++) tanh = (1.0 - R.array() / G1params[i][0]).tanh();
+    dR_ = r.array().rowwise() / R.transpose().array();
+    cos.noalias() = dR_.transpose() * dR_;
+    for (i = 0; i < 3; i++) {
+        dR[i] = dR_.row(i);
+        dcos[i] =
+                (R.cwiseInverse() * dR[i].transpose()) - (cos.array().colwise() * (dR[i].array() / R.array())).matrix();
+    }
+
+    memory->destroy(r_);
+}
+
+void PairNNP::feature_index(int ctype, int *neighlist, int numneigh, int *iG2s, int **iG3s) {
+    int i, j, itype, jtype;
+    int *type = atom->type;
     for (i = 0; i < numneigh; i++) {
+        itype = map[type[neighlist[i]]];
+        if (itype == ctype) iG2s[i] = 0;
+        else iG2s[i] = 1;
+
         for (j = 0; j < numneigh; j++) {
-            cos[i][j] = (r[i][0] * r[j][0] + r[i][1] * r[j][1] + r[i][2] * r[j][2]) / (R[i] * R[j]);
-            dcos[i][j][0] = (-r[i][0] * cos[i][j]) / pow(R[i], 2) + (r[j][0]) / (R[i] * R[j]);
-            dcos[i][j][1] = (-r[i][1] * cos[i][j]) / pow(R[i], 2) + (r[j][1]) / (R[i] * R[j]);
-            dcos[i][j][2] = (-r[i][2] * cos[i][j]) / pow(R[i], 2) + (r[j][2]) / (R[i] * R[j]);
+            jtype = map[type[neighlist[j]]];
+            if (itype == ctype && jtype == ctype) iG3s[i][j] = 0;
+            else if (itype != ctype && jtype != ctype) iG3s[i][j] = 1;
+            else iG3s[i][j] = 2;
         }
     }
 
-    memory->destroy(r);
 }
 
-void
-PairNNP::G1(int cnt, int *neighlist, int numneigh, double *tanh, double **dR, double *G, double ***dG_dr, int iparam) {
+void PairNNP::G1(int iparam, int numneigh, int *iG2s, VectorXd &tanh, VectorXd *dR, double *G, double ***dG_dr) {
     int i, iG;
-    double coeff;
-    int *type = atom->type;
-    int ctype = map[type[cnt]];
+    VectorXd coeff, g, dg[3];
     double Rc = G1params[iparam][0];
 
+    g = tanh.array().pow(3);
+    coeff = -3.0 / Rc * (1.0 - tanh.array().pow(2)) * tanh.array().pow(2);
+    dg[0] = coeff.array() * dR[0].array();
+    dg[1] = coeff.array() * dR[1].array();
+    dg[2] = coeff.array() * dR[2].array();
+
     for (i = 0; i < numneigh; i++) {
-        if (map[type[neighlist[i]]] == ctype) iG = 2 * iparam;
-        else iG = 2 * iparam + 1;
-
-        G[iG] += pow(tanh[i], 3);
-
-        coeff = -3.0 / Rc * (1.0 - pow(tanh[i], 2)) * pow(tanh[i], 2);
-        dG_dr[iG][i][0] += coeff * dR[i][0];
-        dG_dr[iG][i][1] += coeff * dR[i][1];
-        dG_dr[iG][i][2] += coeff * dR[i][2];
+        iG = 2 * iparam + iG2s[i];
+        G[iG] += g(i);
+        dG_dr[0][i][iG] += dg[0](i);
+        dG_dr[1][i][iG] += dg[1](i);
+        dG_dr[2][i][iG] += dg[2](i);
     }
 }
 
-void
-PairNNP::G2(int cnt, int *neighlist, int numneigh, double *R, double *tanh, double **dR, double *G, double ***dG_dr,
-            int iparam) {
+void PairNNP::G2(int iparam, int numneigh, int *iG2s, VectorXd &R, VectorXd &tanh, VectorXd *dR, double *G,
+                 double ***dG_dr) {
     int i, iG;
-    double coeff;
-    int *type = atom->type;
-    int ctype = map[type[cnt]];
+    VectorXd coeff, g, dg[3];
     double Rc = G2params[iparam][0];
     double eta = G2params[iparam][1];
     double Rs = G2params[iparam][2];
 
+    g = (-eta * (R.array() - Rs).pow(2)).exp() * tanh.array().pow(3);
+    coeff = (-eta * (R.array() - Rs).pow(2)).exp() * tanh.array().pow(2) *
+            (-2.0 * eta * (R.array() - Rs) * tanh.array() + 3.0 / Rc * (tanh.array().pow(2) - 1.0));
+    dg[0] = coeff.array() * dR[0].array();
+    dg[1] = coeff.array() * dR[1].array();
+    dg[2] = coeff.array() * dR[2].array();
+
     for (i = 0; i < numneigh; i++) {
-        if (map[type[neighlist[i]]] == ctype) iG = 2 * (nG1params + iparam);
-        else iG = 2 * (nG1params + iparam) + 1;
-
-        G[iG] += exp(-eta * pow((R[i] - Rs), 2)) * pow(tanh[i], 3);
-
-        coeff = exp(-eta * pow((R[i] - Rs), 2)) * pow(tanh[i], 2) *
-                (-2.0 * eta * (R[i] - Rs) * tanh[i] + 3.0 / Rc * (pow(tanh[i], 2) - 1.0));
-        dG_dr[iG][i][0] += coeff * dR[i][0];
-        dG_dr[iG][i][1] += coeff * dR[i][1];
-        dG_dr[iG][i][2] += coeff * dR[i][2];
+        iG = 2 * (nG1params + iparam) + iG2s[i];
+        G[iG] += g(i);
+        dG_dr[0][i][iG] += dg[0](i);
+        dG_dr[1][i][iG] += dg[1](i);
+        dG_dr[2][i][iG] += dg[2](i);
     }
 }
 
-void
-PairNNP::G4(int cnt, int *neighlist, int numneigh, double *R, double *tanh, double **cos, double **dR, double ***dcos,
-            double *G, double ***dG_dr, int iparam) {
-    int i, j, itype, jtype, iG;
-    double ang, tmp1, tmp2;
-    int *type = atom->type;
-    int ctype = map[type[cnt]];
+void PairNNP::G4(int iparam, int numneigh, int **iG3s, VectorXd &R, VectorXd &tanh, MatrixXd &cos, VectorXd *dR,
+                 MatrixXd *dcos, double *G, double ***dG_dr) {
+    int i, j, iG;
+    double coeffs;
+    VectorXd rad1, rad2;
+    MatrixXd ang, g, coeff1, coeff2, dg[3];
     double Rc = G4params[iparam][0];
     double eta = G4params[iparam][1];
     double lambda = G4params[iparam][2];
     double zeta = G4params[iparam][3];
 
-    double rad1[numneigh];
-    double rad2[numneigh];
-    for (i = 0; i < numneigh; i++) {
-        rad1[i] = exp(-eta * pow(R[i], 2)) * pow(tanh[i], 3);
-        rad2[i] = exp(-eta * pow(R[i], 2)) * pow(tanh[i], 2) *
-                  (-2.0 * eta * R[i] * tanh[i] + 3.0 / Rc * (pow(tanh[i], 2) - 1.0));
-    }
+    coeffs = pow(2.0, 1 - zeta);
+    ang = 1.0 + lambda * cos.array();
+    rad1 = (-eta * R.array().pow(2)).exp() * tanh.array().pow(3);
+    rad2 = (-eta * R.array().pow(2)).exp() * tanh.array().pow(2) *
+           (-2.0 * eta * R.array() * tanh.array() + 3.0 / Rc * (tanh.array().pow(2) - 1.0));
+    g = ((coeffs * ang.array().pow(zeta)).colwise() * rad1.array()).rowwise() * rad1.transpose().array();
+    coeff1 = ((coeffs * ang.array().pow(zeta)).colwise() * rad2.array()).rowwise() * rad1.transpose().array();
+    coeff2 = ((zeta * lambda * coeffs * ang.array().pow(zeta - 1)).colwise() * rad1.array()).rowwise() *
+             rad1.transpose().array();
+    dg[0] = coeff1.array().colwise() * dR[0].array() + coeff2.array() * dcos[0].array();
+    dg[1] = coeff1.array().colwise() * dR[1].array() + coeff2.array() * dcos[1].array();
+    dg[2] = coeff1.array().colwise() * dR[2].array() + coeff2.array() * dcos[2].array();
 
     for (i = 0; i < numneigh; i++) {
-        itype = map[type[neighlist[i]]];
-        for (j = 0; j < i; j++) {
-            jtype = map[type[neighlist[j]]];
-            if (itype == ctype && jtype == ctype) iG = 2 * (nG1params + nG2params) + 3 * iparam;
-            else if (itype != ctype && jtype != ctype) iG = 2 * (nG1params + nG2params) + 3 * iparam + 1;
-            else iG = 2 * (nG1params + nG2params) + 3 * iparam + 2;
-
-            G[iG] += pow(2.0, 1 - zeta) * pow(1.0 + lambda * cos[i][j], zeta) * rad1[i] * rad1[j];
-        }
-
         for (j = 0; j < numneigh; j++) {
             if (i == j) continue;
-            jtype = map[type[neighlist[j]]];
-            if (itype == ctype && jtype == ctype) iG = 2 * (nG1params + nG2params) + 3 * iparam;
-            else if (itype != ctype && jtype != ctype) iG = 2 * (nG1params + nG2params) + 3 * iparam + 1;
-            else iG = 2 * (nG1params + nG2params) + 3 * iparam + 2;
-
-            ang = 1.0 + lambda * cos[i][j];
-            tmp1 = pow(2.0, 1 - zeta) * pow(ang, zeta) * rad2[i] * rad1[j];
-            tmp2 = zeta * lambda * pow(2.0, 1 - zeta) * pow(ang, zeta - 1) * rad1[i] * rad1[j];
-            dG_dr[iG][i][0] += tmp1 * dR[i][0] + tmp2 * dcos[i][j][0];
-            dG_dr[iG][i][1] += tmp1 * dR[i][1] + tmp2 * dcos[i][j][1];
-            dG_dr[iG][i][2] += tmp1 * dR[i][2] + tmp2 * dcos[i][j][2];
+            iG = 2 * (nG1params + nG2params) + 3 * iparam + iG3s[i][j];
+            G[iG] += g(i, j);
+            dG_dr[0][i][iG] += dg[0](i, j);
+            dG_dr[1][i][iG] += dg[1](i, j);
+            dG_dr[2][i][iG] += dg[2](i, j);
         }
     }
 }

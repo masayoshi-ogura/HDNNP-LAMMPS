@@ -1,6 +1,5 @@
 #define EIGEN_USE_MKL_ALL
 #define EIGEN_NO_DEBUG
-#define EIGEN_DONT_PARALLELIZE
 #define EIGEN_MPL2_ONLY
 
 #include <iostream>
@@ -17,25 +16,25 @@ class Layer {
 private:
     void set_activation(char *);
 
-    typedef void (Layer::*FuncPtr)(MatrixXd &);
+    typedef void (Layer::*FuncPtr)(VectorXd &);
 
-    typedef void (Layer::*FuncPtr2)(MatrixXd &, MatrixXd &);
+    typedef void (Layer::*FuncPtr2)(VectorXd &, VectorXd &);
 
     FuncPtr activation;
 
     FuncPtr2 activation2;
 
-    void tanh(MatrixXd &);
+    void tanh(VectorXd &);
 
-    void deriv_tanh(MatrixXd &, MatrixXd &);
+    void deriv_tanh(VectorXd &, VectorXd &);
 
-    void sigmoid(MatrixXd &);
+    void sigmoid(VectorXd &);
 
-    void deriv_sigmoid(MatrixXd &, MatrixXd &);
+    void deriv_sigmoid(VectorXd &, VectorXd &);
 
-    void identity(MatrixXd &);
+    void identity(VectorXd &);
 
-    void deriv_identity(MatrixXd &, MatrixXd &);
+    void deriv_identity(VectorXd &, VectorXd &);
 
 public:
     MatrixXd weight;
@@ -45,9 +44,9 @@ public:
 
     Layer(int, int, double *, double *, char *);
 
-    void feedforward(MatrixXd &);
+    void feedforward(VectorXd &);
 
-    void feedforward2(MatrixXd &, MatrixXd &);
+    void feedforward2(VectorXd &, VectorXd &);
 };
 
 
@@ -60,9 +59,9 @@ public:
 
     NNP(int);
 
-    void energy(int, double *, double &);
+    void energy(VectorXd, double &);
 
-    void deriv(int, double *, double *);
+    void deriv(VectorXd, VectorXd &);
 };
 
 

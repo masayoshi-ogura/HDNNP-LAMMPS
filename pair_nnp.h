@@ -59,13 +59,15 @@ namespace LAMMPS_NS {
 
         virtual void setup_params();
 
-        void geometry(int, int *, int, double *, double *, double **, double **, double ***);
+        void geometry(int, int *, int, VectorXd &, VectorXd &, MatrixXd &, VectorXd *, MatrixXd *);
 
-        void G1(int, int *, int, double *, double **, double *, double ***, int);
+        void feature_index(int, int *, int, int *, int **);
 
-        void G2(int, int *, int, double *, double *, double **, double *, double ***, int);
+        void G1(int, int, int *, VectorXd &, VectorXd *, double *, double ***);
 
-        void G4(int, int *, int, double *, double *, double **, double **, double ***, double *, double ***, int);
+        void G2(int, int, int *, VectorXd &, VectorXd &, VectorXd *, double *, double ***);
+
+        void G4(int, int, int **, VectorXd &, VectorXd &, MatrixXd &, VectorXd *, MatrixXd *, double *, double ***);
     };
 
 }

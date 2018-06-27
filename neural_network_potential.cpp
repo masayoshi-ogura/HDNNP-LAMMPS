@@ -13,27 +13,27 @@ Layer::Layer(int in, int out, double *w, double *b, char *act) {
     set_activation(act);
 }
 
-void Layer::tanh(MatrixXd &input) {
+void Layer::tanh(VectorXd &input) {
     input = input.array().tanh();
 }
 
-void Layer::deriv_tanh(MatrixXd &input, MatrixXd &deriv) {
+void Layer::deriv_tanh(VectorXd &input, VectorXd &deriv) {
     input = input.array().tanh();
     deriv = 1.0 - input.array().pow(2);
 }
 
-void Layer::sigmoid(MatrixXd &input) {
+void Layer::sigmoid(VectorXd &input) {
     input = 1.0 / (1.0 + (-input).array().exp());
 }
 
-void Layer::deriv_sigmoid(MatrixXd &input, MatrixXd &deriv) {
+void Layer::deriv_sigmoid(VectorXd &input, VectorXd &deriv) {
     input = 1.0 / (1.0 + (-input).array().exp());
     deriv = input.array() * (1.0 - input.array());
 }
 
-void Layer::identity(MatrixXd &input) { ; }
+void Layer::identity(VectorXd &input) { ; }
 
-void Layer::deriv_identity(MatrixXd &input, MatrixXd &deriv) {
+void Layer::deriv_identity(VectorXd &input, VectorXd &deriv) {
     deriv = input.setOnes();
 }
 
@@ -50,12 +50,12 @@ void Layer::set_activation(char *act) {
     }
 }
 
-void Layer::feedforward(MatrixXd &input) {
+void Layer::feedforward(VectorXd &input) {
     input = (weight * input).colwise() + bias;
     (this->*activation)(input);
 }
 
-void Layer::feedforward2(MatrixXd &input, MatrixXd &deriv) {
+void Layer::feedforward2(VectorXd &input, VectorXd &deriv) {
     input = (weight * input).colwise() + bias;
     (this->*activation2)(input, deriv);
 }
@@ -74,26 +74,20 @@ NNP::NNP(int n) {
     layers = new Layer *[depth];
 }
 
-void NNP::energy(int nfeature, double *G, double &E) {
+void NNP::energy(VectorXd input, double &E) {
     int i;
-    MatrixXd input = Map<MatrixXd>(&G[0], nfeature, 1);
-    for (i = 0; i < depth; i++) {
-        layers[i]->feedforward(input);
-    }
-    E += input(0, 0);
+    for (i = 0; i < depth; i++) layers[i]->feedforward(input);
+    E += input(0);
 }
 
-void NNP::deriv(int nfeature, double *G, double *dE_dG) {
+void NNP::deriv(VectorXd input, VectorXd &dE_dG) {
     int i;
-    MatrixXd input = Map<MatrixXd>(&G[0], nfeature, 1);
+    VectorXd deriv[depth];
 
-    MatrixXd deriv[depth];
     for (i = 0; i < depth; i++) layers[i]->feedforward2(input, deriv[i]);
-    MatrixXd tmp = MatrixXd::Ones(1, 1);
+    dE_dG = VectorXd::Ones(1);
     for (i = depth - 1; i >= 0; i--) {
-        tmp = tmp.array() * deriv[i].array();
-        tmp = layers[i]->weight.transpose() * tmp;
+        dE_dG = dE_dG.array() * deriv[i].array();
+        dE_dG = dE_dG.transpose() * layers[i]->weight;
     }
-
-    Map<MatrixXd>(&dE_dG[0], nfeature, 1) = tmp;
 }
