@@ -152,9 +152,9 @@ void PairNNP::compute(int eflag, int vflag) {
 
         masters[itype]->deriv(G, dE_dG);
 
-        F[0].noalias() = dE_dG * dG_dx;
-        F[1].noalias() = dE_dG * dG_dy;
-        F[2].noalias() = dE_dG * dG_dz;
+        F[0].noalias() = dE_dG.transpose() * dG_dx;
+        F[1].noalias() = dE_dG.transpose() * dG_dy;
+        F[2].noalias() = dE_dG.transpose() * dG_dz;
 
         for (jj = 0; jj < jnum; jj++) {
             j = jlist[jj];
