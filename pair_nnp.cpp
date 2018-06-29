@@ -49,8 +49,9 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
     nelements = 0;
     elements = NULL;
     masters = NULL;
-    nparams = nG1params = nG2params = nG4params = 0;
+    nG1params = nG2params = nG4params = 0;
     G1params = G2params = G4params = NULL;
+    components = mean = NULL;
     map = NULL;
 }
 
@@ -70,6 +71,8 @@ PairNNP::~PairNNP() {
     delete[] G2params;
     if (G4params) for (i = 0; i < nG1params; i++) delete[] G4params[i];
     delete[] G4params;
+    delete[] components;
+    delete[] mean;
 
     delete[] masters;
 
@@ -126,16 +129,15 @@ void PairNNP::compute(int eflag, int vflag) {
                 for (int c = 0; c < nfeature; c++) dG_dr_raw[a][b][c] = 0.0;
 
         iG2s = new int[jnum];
-        iG3s = new int*[jnum];
+        iG3s = new int *[jnum];
         for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
         feature_index(itype, jlist, jnum, iG2s, iG3s);
-        for (iparam = 0; iparam < nparams; iparam++) {
-            if (iparam < nG1params) G1(iparam, jnum, iG2s, tanh, dR, G_raw, dG_dr_raw);
-            else if (iparam < nG1params + nG2params)
-                G2(iparam - nG1params, jnum, iG2s, R, tanh, dR, G_raw, dG_dr_raw);
-            else if (iparam < nG1params + nG2params + nG4params)
-                G4(iparam - nG1params - nG2params, jnum, iG3s, R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
-        }
+        for (iparam = 0; iparam < nG1params; iparam++)
+            G1(G1params[iparam], iparam, jnum, iG2s, tanh, dR, G_raw, dG_dr_raw);
+        for (iparam = 0; iparam < nG2params; iparam++)
+            G2(G2params[iparam], iparam, jnum, iG2s, R, tanh, dR, G_raw, dG_dr_raw);
+        for (iparam = 0; iparam < nG4params; iparam++)
+            G4(G4params[iparam], iparam, jnum, iG3s, R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
         delete[] iG2s;
         for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
         delete[] iG3s;
@@ -149,6 +151,8 @@ void PairNNP::compute(int eflag, int vflag) {
         dG_dy = Map<MatrixXd>(&dG_dr_raw[1][0][0], nfeature, jnum);
         dG_dz = Map<MatrixXd>(&dG_dr_raw[2][0][0], nfeature, jnum);
         memory->destroy(dG_dr_raw);
+
+        preconditioning(itype, G, dG_dx, dG_dy, dG_dz);
 
         masters[itype]->deriv(G, dE_dG);
 
@@ -303,6 +307,7 @@ void PairNNP::read_file(char *file) {
     char *element, *activation;
     int depth, depthnum, insize, outsize;
     double *weight, *bias;
+    double *components_raw, *mean_raw;
 
     // open file on proc 0
     FILE *fp;
@@ -359,7 +364,6 @@ void PairNNP::read_file(char *file) {
     zeta[0] = atof(strtok(line, " \t\n\r\f"));
     for (i = 1; i < nzeta; i++) zeta[i] = atof(strtok(NULL, " \t\n\r\f"));
 
-    nparams = nRc * (1 + neta * (nRs + nlambda * nzeta));
     nG1params = nRc;
     nG2params = nRc * neta * nRs;
     nG4params = nRc * neta * nlambda * nzeta;
@@ -384,7 +388,44 @@ void PairNNP::read_file(char *file) {
     // preconditioning parameters
     get_next_line(line, ptr, fp, nwords);
     if (atoi(line)) {
-        // preconditioning layer
+        get_next_line(line, ptr, fp, nwords);
+        precond = new char[10];
+        strcpy(precond, strtok(line, " \t\n\r\f"));
+
+        if (strcmp(precond, "pca") == 0) {
+            components = new MatrixXd[nelements];
+            mean = new VectorXd[nelements];
+            for (i = 0; i < nelements; i++) {
+                get_next_line(line, ptr, fp, nwords);
+                element = new char[3];
+                strcpy(element, strtok(line, " \t\n\r\f"));
+                outsize = atoi(strtok(NULL, " \t\n\r\f"));
+                insize = atoi(strtok(NULL, " \t\n\r\f"));
+                components_raw = new double[insize * outsize];
+                mean_raw = new double[insize];
+
+                for (j = 0; j < outsize; j++) {
+                    get_next_line(line, ptr, fp, nwords);
+                    components_raw[j * insize] = atof(strtok(line, " \t\n\r\f"));
+                    for (k = 1; k < insize; k++) components_raw[j * insize + k] = atof(strtok(NULL, " \t\n\r\f"));
+                }
+
+                get_next_line(line, ptr, fp, nwords);
+                mean_raw[0] = atof(strtok(line, " \t\n\r\f"));
+                for (j = 1; j < insize; j++) mean_raw[j] = atof(strtok(NULL, " \t\n\r\f"));
+
+                for (j = 0; j < nelements; j++) {
+                    if (strcmp(elements[j], element) == 0) {
+                        components[j] = Map<MatrixXd>(components_raw, insize, outsize).transpose();
+                        mean[j] = Map<VectorXd>(mean_raw, insize);
+                    }
+                }
+                delete[] element;
+                delete[] components_raw;
+                delete[] mean_raw;
+            }
+        }
+        delete[] preocond;
     }
 
 
@@ -393,7 +434,7 @@ void PairNNP::read_file(char *file) {
     depth = atoi(line);
     for (i = 0; i < nelements; i++) masters[i] = new NNP(depth);
 
-    for (k = 0; k < nelements * depth; k++) {
+    for (i = 0; i < nelements * depth; i++) {
         get_next_line(line, ptr, fp, nwords);
         element = new char[3];
         strcpy(element, strtok(line, " \t\n\r\f"));
@@ -405,24 +446,24 @@ void PairNNP::read_file(char *file) {
         weight = new double[insize * outsize];
         bias = new double[outsize];
 
-        for (i = 0; i < insize; i++) {
+        for (j = 0; j < insize; j++) {
             get_next_line(line, ptr, fp, nwords);
-            weight[i * outsize] = atof(strtok(line, " \t\n\r\f"));
-            for (j = 1; j < outsize; j++)
-                weight[i * outsize + j] = atof(strtok(NULL, " \t\n\r\f"));
+            weight[j * outsize] = atof(strtok(line, " \t\n\r\f"));
+            for (k = 1; k < outsize; k++)
+                weight[j * outsize + k] = atof(strtok(NULL, " \t\n\r\f"));
         }
 
         get_next_line(line, ptr, fp, nwords);
         bias[0] = atof(strtok(line, " \t\n\r\f"));
         for (j = 1; j < outsize; j++) bias[j] = atof(strtok(NULL, " \t\n\r\f"));
 
-        for (j = 0; j < nelements; j++) {
-            if (strcmp(elements[j], element) == 0) {
+        for (j = 0; j < nelements; j++)
+            if (strcmp(elements[j], element) == 0)
                 masters[j]->layers[depthnum] =
                         new Layer(insize, outsize, weight, bias, activation);
-            }
-        }
 
+        delete[] element;
+        delete[] activation;
         delete[] weight;
         delete[] bias;
     }
@@ -479,86 +520,11 @@ void PairNNP::feature_index(int ctype, int *neighlist, int numneigh, int *iG2s, 
             else iG3s[i][j] = 2;
         }
     }
-
 }
 
-void PairNNP::G1(int iparam, int numneigh, int *iG2s, VectorXd &tanh, VectorXd *dR, double *G, double ***dG_dr) {
-    int i, iG;
-    VectorXd coeff, g, dg[3];
-    double Rc = G1params[iparam][0];
-
-    g = tanh.array().pow(3);
-    coeff = -3.0 / Rc * (1.0 - tanh.array().pow(2)) * tanh.array().pow(2);
-    dg[0] = coeff.array() * dR[0].array();
-    dg[1] = coeff.array() * dR[1].array();
-    dg[2] = coeff.array() * dR[2].array();
-
-    for (i = 0; i < numneigh; i++) {
-        iG = 2 * iparam + iG2s[i];
-        G[iG] += g(i);
-        dG_dr[0][i][iG] += dg[0](i);
-        dG_dr[1][i][iG] += dg[1](i);
-        dG_dr[2][i][iG] += dg[2](i);
-    }
+void PairNNP::preconditioning(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy, MatrixXd &dG_dz) {
+    G = components[type] * (G - mean[type]);
+    dG_dx = components[type] * (dG_dx.colwise() - mean[type]);
+    dG_dy = components[type] * (dG_dy.colwise() - mean[type]);
+    dG_dz = components[type] * (dG_dz.colwise() - mean[type]);
 }
-
-void PairNNP::G2(int iparam, int numneigh, int *iG2s, VectorXd &R, VectorXd &tanh, VectorXd *dR, double *G,
-                 double ***dG_dr) {
-    int i, iG;
-    VectorXd coeff, g, dg[3];
-    double Rc = G2params[iparam][0];
-    double eta = G2params[iparam][1];
-    double Rs = G2params[iparam][2];
-
-    g = (-eta * (R.array() - Rs).pow(2)).exp() * tanh.array().pow(3);
-    coeff = (-eta * (R.array() - Rs).pow(2)).exp() * tanh.array().pow(2) *
-            (-2.0 * eta * (R.array() - Rs) * tanh.array() + 3.0 / Rc * (tanh.array().pow(2) - 1.0));
-    dg[0] = coeff.array() * dR[0].array();
-    dg[1] = coeff.array() * dR[1].array();
-    dg[2] = coeff.array() * dR[2].array();
-
-    for (i = 0; i < numneigh; i++) {
-        iG = 2 * (nG1params + iparam) + iG2s[i];
-        G[iG] += g(i);
-        dG_dr[0][i][iG] += dg[0](i);
-        dG_dr[1][i][iG] += dg[1](i);
-        dG_dr[2][i][iG] += dg[2](i);
-    }
-}
-
-void PairNNP::G4(int iparam, int numneigh, int **iG3s, VectorXd &R, VectorXd &tanh, MatrixXd &cos, VectorXd *dR,
-                 MatrixXd *dcos, double *G, double ***dG_dr) {
-    int i, j, iG;
-    double coeffs;
-    VectorXd rad1, rad2;
-    MatrixXd ang, g, coeff1, coeff2, dg[3];
-    double Rc = G4params[iparam][0];
-    double eta = G4params[iparam][1];
-    double lambda = G4params[iparam][2];
-    double zeta = G4params[iparam][3];
-
-    coeffs = pow(2.0, 1 - zeta);
-    ang = 1.0 + lambda * cos.array();
-    rad1 = (-eta * R.array().pow(2)).exp() * tanh.array().pow(3);
-    rad2 = (-eta * R.array().pow(2)).exp() * tanh.array().pow(2) *
-           (-2.0 * eta * R.array() * tanh.array() + 3.0 / Rc * (tanh.array().pow(2) - 1.0));
-    g = ((0.5 * coeffs * ang.array().pow(zeta)).colwise() * rad1.array()).rowwise() * rad1.transpose().array();
-    coeff1 = ((coeffs * ang.array().pow(zeta)).colwise() * rad2.array()).rowwise() * rad1.transpose().array();
-    coeff2 = ((zeta * lambda * coeffs * ang.array().pow(zeta - 1)).colwise() * rad1.array()).rowwise() *
-             rad1.transpose().array();
-    dg[0] = coeff1.array().colwise() * dR[0].array() + coeff2.array() * dcos[0].array();
-    dg[1] = coeff1.array().colwise() * dR[1].array() + coeff2.array() * dcos[1].array();
-    dg[2] = coeff1.array().colwise() * dR[2].array() + coeff2.array() * dcos[2].array();
-
-    for (i = 0; i < numneigh; i++) {
-        for (j = 0; j < numneigh; j++) {
-            if (i == j) continue;
-            iG = 2 * (nG1params + nG2params) + 3 * iparam + iG3s[i][j];
-            G[iG] += g(i, j);
-            dG_dr[0][i][iG] += dg[0](i, j);
-            dG_dr[1][i][iG] += dg[1](i, j);
-            dG_dr[2][i][iG] += dg[2](i, j);
-        }
-    }
-}
-

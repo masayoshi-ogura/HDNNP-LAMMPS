@@ -1,3 +1,9 @@
+//
+// Created by Masayoshi Ogura on 2018/06/~~.
+//
+
+#ifndef INCLUDED_NNP_H_
+#define INCLUDED_NNP_H_
 #define EIGEN_USE_MKL_ALL
 #define EIGEN_NO_DEBUG
 #define EIGEN_MPL2_ONLY
@@ -5,9 +11,6 @@
 #include <iostream>
 #include <string>
 #include <Eigen/Core>
-
-#ifndef INCLUDED_NNP_H_
-#define INCLUDED_NNP_H_
 
 using namespace std;
 using namespace Eigen;

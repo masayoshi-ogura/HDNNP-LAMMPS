@@ -22,6 +22,7 @@ PairStyle(nnp,PairNNP)
 
 #include "pair.h"
 #include "neural_network_potential.h"
+#include "symmetry_function.h"
 
 namespace LAMMPS_NS {
 
@@ -46,9 +47,12 @@ namespace LAMMPS_NS {
         char **elements;                   // names of unique elements
         int *map;                          // mapping from atom types to elements
         NNP **masters;                     // parameter set for an I-J-K interaction
-        int nparams, nG1params, nG2params, nG4params;
+        int nG1params, nG2params, nG4params;
         double **G1params, **G2params, **G4params;
         int nfeature;
+        char *precond;
+        MatrixXd *components;
+        VectorXd *mean;
 
 
         virtual void allocate();
@@ -63,11 +67,7 @@ namespace LAMMPS_NS {
 
         void feature_index(int, int *, int, int *, int **);
 
-        void G1(int, int, int *, VectorXd &, VectorXd *, double *, double ***);
-
-        void G2(int, int, int *, VectorXd &, VectorXd &, VectorXd *, double *, double ***);
-
-        void G4(int, int, int **, VectorXd &, VectorXd &, MatrixXd &, VectorXd *, MatrixXd *, double *, double ***);
+        void preconditioning(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
     };
 
 }

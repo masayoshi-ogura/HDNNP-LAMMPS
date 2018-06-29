@@ -2,10 +2,9 @@
 
 LAMMPS-extending program that consists of following 4 .h and .cpp files
 
-- neural_network_potential.h
-- neural_network_potential.cpp
-- pair_nnp.h
-- pair_nnp.cpp
+- neural_network_potential.*
+- pair_nnp.*
+- symmetry_function.*
 
 # setup and compile
 
@@ -16,6 +15,8 @@ $ ln -s path_to_this/neural_newtork_potential.h
 $ ln -s path_to_this/neural_newtork_potential.cpp
 $ ln -s path_to_this/pair_nnp.h
 $ ln -s path_to_this/pair_nnp.cpp
+$ ln -s path_to_this/symmetry_function.h
+$ ln -s path_to_this/symmetry_function.cpp
 ```
 
 then, this pair potential use Eigen library, and MKL library.  

@@ -19,7 +19,7 @@ void Layer::tanh(VectorXd &input) {
 
 void Layer::deriv_tanh(VectorXd &input, VectorXd &deriv) {
     input = input.array().tanh();
-    deriv = 1.0 - input.array().pow(2);
+    deriv = 1.0 - input.array().square();
 }
 
 void Layer::sigmoid(VectorXd &input) {
