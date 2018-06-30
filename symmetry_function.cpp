@@ -4,7 +4,7 @@
 
 #include "symmetry_function.h"
 
-void G1(double *params, int numneigh, int iparam, int *iG2s, VectorXd &tanh, VectorXd *dR, double *G, double ***dG_dr) {
+void G1(double *params, int iparam, int *iG2s, int numneigh, VectorXd &tanh, VectorXd *dR, double *G, double ***dG_dr) {
     int i, iG;
     VectorXd coeff, g, dg[3];
     double Rc = params[0];
@@ -16,7 +16,7 @@ void G1(double *params, int numneigh, int iparam, int *iG2s, VectorXd &tanh, Vec
     dg[2] = coeff.array() * dR[2].array();
 
     for (i = 0; i < numneigh; i++) {
-        iG = 2 * iparam + iG2s[i];
+        iG = iparam + iG2s[i];
         G[iG] += g(i);
         dG_dr[0][i][iG] += dg[0](i);
         dG_dr[1][i][iG] += dg[1](i);
@@ -24,7 +24,7 @@ void G1(double *params, int numneigh, int iparam, int *iG2s, VectorXd &tanh, Vec
     }
 }
 
-void G2(double *params, int numneigh, int iparam, int *iG2s, VectorXd &R, VectorXd &tanh, VectorXd *dR, double *G,
+void G2(double *params, int iparam, int *iG2s, int numneigh, VectorXd &R, VectorXd &tanh, VectorXd *dR, double *G,
         double ***dG_dr) {
     int i, iG;
     VectorXd coeff, g, dg[3];
@@ -40,7 +40,7 @@ void G2(double *params, int numneigh, int iparam, int *iG2s, VectorXd &R, Vector
     dg[2] = coeff.array() * dR[2].array();
 
     for (i = 0; i < numneigh; i++) {
-        iG = 2 * (nG1params + iparam) + iG2s[i];
+        iG = iparam + iG2s[i];
         G[iG] += g(i);
         dG_dr[0][i][iG] += dg[0](i);
         dG_dr[1][i][iG] += dg[1](i);
@@ -48,7 +48,7 @@ void G2(double *params, int numneigh, int iparam, int *iG2s, VectorXd &R, Vector
     }
 }
 
-void G4(double *params, int numneigh, int iparam, int **iG3s, VectorXd &R, VectorXd &tanh, MatrixXd &cos, VectorXd *dR,
+void G4(double *params, int iparam, int **iG3s, int numneigh, VectorXd &R, VectorXd &tanh, MatrixXd &cos, VectorXd *dR,
         MatrixXd *dcos, double *G, double ***dG_dr) {
     int i, j, iG;
     double coeffs;
@@ -75,7 +75,7 @@ void G4(double *params, int numneigh, int iparam, int **iG3s, VectorXd &R, Vecto
     for (i = 0; i < numneigh; i++) {
         for (j = 0; j < numneigh; j++) {
             if (i == j) continue;
-            iG = 2 * (nG1params + nG2params) + 3 * iparam + iG3s[i][j];
+            iG = iparam + iG3s[i][j];
             G[iG] += g(i, j);
             dG_dr[0][i][iG] += dg[0](i, j);
             dG_dr[1][i][iG] += dg[1](i, j);

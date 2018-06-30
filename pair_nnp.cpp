@@ -51,7 +51,8 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
     masters = NULL;
     nG1params = nG2params = nG4params = 0;
     G1params = G2params = G4params = NULL;
-    components = mean = NULL;
+    components = NULL;
+    mean = NULL;
     map = NULL;
 }
 
@@ -133,11 +134,12 @@ void PairNNP::compute(int eflag, int vflag) {
         for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
         feature_index(itype, jlist, jnum, iG2s, iG3s);
         for (iparam = 0; iparam < nG1params; iparam++)
-            G1(G1params[iparam], iparam, jnum, iG2s, tanh, dR, G_raw, dG_dr_raw);
+            G1(G1params[iparam], 2 * iparam, iG2s, jnum, tanh, dR, G_raw, dG_dr_raw);
         for (iparam = 0; iparam < nG2params; iparam++)
-            G2(G2params[iparam], iparam, jnum, iG2s, R, tanh, dR, G_raw, dG_dr_raw);
+            G2(G2params[iparam], 2 * (nG1params + iparam), iG2s, jnum, R, tanh, dR, G_raw, dG_dr_raw);
         for (iparam = 0; iparam < nG4params; iparam++)
-            G4(G4params[iparam], iparam, jnum, iG3s, R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
+            G4(G4params[iparam], 2 * (nG1params + nG2params) + 3 * iparam, iG3s,
+               jnum, R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
         delete[] iG2s;
         for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
         delete[] iG3s;
@@ -425,7 +427,7 @@ void PairNNP::read_file(char *file) {
                 delete[] mean_raw;
             }
         }
-        delete[] preocond;
+        delete[] precond;
     }
 
 
@@ -524,7 +526,7 @@ void PairNNP::feature_index(int ctype, int *neighlist, int numneigh, int *iG2s, 
 
 void PairNNP::preconditioning(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy, MatrixXd &dG_dz) {
     G = components[type] * (G - mean[type]);
-    dG_dx = components[type] * (dG_dx.colwise() - mean[type]);
-    dG_dy = components[type] * (dG_dy.colwise() - mean[type]);
-    dG_dz = components[type] * (dG_dz.colwise() - mean[type]);
+    dG_dx = components[type] * dG_dx;
+    dG_dy = components[type] * dG_dy;
+    dG_dz = components[type] * dG_dz;
 }
