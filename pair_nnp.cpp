@@ -154,7 +154,7 @@ void PairNNP::compute(int eflag, int vflag) {
         dG_dz = Map<MatrixXd>(&dG_dr_raw[2][0][0], nfeature, jnum);
         memory->destroy(dG_dr_raw);
 
-        if (preproc_flag) preproc_func(itype, G, dG_dx, dG_dy, dG_dz);
+        if (preproc_flag) (this->*preproc_func)(itype, G, dG_dx, dG_dy, dG_dz);
 
         masters[itype]->deriv(G, dE_dG);
 
