@@ -44,6 +44,7 @@ namespace LAMMPS_NS {
 
     protected:
         int nelements;                     // # of unique elements
+        int **combinations;                // index of combination of 2 element
         char **elements;                   // names of unique elements
         int *map;                          // mapping from atom types to elements
         NNP **masters;                     // parameter set for an I-J-K interaction
@@ -65,7 +66,7 @@ namespace LAMMPS_NS {
 
         void geometry(int, int *, int, VectorXd &, VectorXd &, MatrixXd &, VectorXd *, MatrixXd *);
 
-        void feature_index(int, int *, int, int *, int **);
+        void feature_index(int *, int, int *, int **);
 
         typedef void (PairNNP::*FuncPtr)(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
 

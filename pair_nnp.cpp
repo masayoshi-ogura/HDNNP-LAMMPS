@@ -47,6 +47,7 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
     manybody_flag = 1;
 
     nelements = 0;
+    combinations = NULL;
     elements = NULL;
     masters = NULL;
     nG1params = nG2params = nG4params = 0;
@@ -64,6 +65,8 @@ PairNNP::~PairNNP() {
     int i;
     if (copymode) return;
 
+    if (combinations) for (i = 0; i < atom->ntypes; i++) delete[] combinations[i];
+    delete[] combinations;
     if (elements) for (i = 0; i < nelements; i++) delete[] elements[i];
     delete[] elements;
     if (G1params) for (i = 0; i < nG1params; i++) delete[] G1params[i];
@@ -132,7 +135,7 @@ void PairNNP::compute(int eflag, int vflag) {
         iG2s = new int[jnum];
         iG3s = new int *[jnum];
         for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
-        feature_index(itype, jlist, jnum, iG2s, iG3s);
+        feature_index(jlist, jnum, iG2s, iG3s);
         for (iparam = 0; iparam < nG1params; iparam++)
             G1(G1params[iparam], 2 * iparam, iG2s, jnum, tanh, dR, G_raw, dG_dr_raw);
         for (iparam = 0; iparam < nG2params; iparam++)
@@ -196,7 +199,7 @@ void PairNNP::settings(int narg, char **arg) {
 ------------------------------------------------------------------------- */
 
 void PairNNP::coeff(int narg, char **arg) {
-    int i, j, n;
+    int i, j, n, idx;
     int ntypes = atom->ntypes;
 
     if (!allocated) allocate();
@@ -237,6 +240,12 @@ void PairNNP::coeff(int narg, char **arg) {
             nelements++;
         }
     }
+    combinations = new int *[ntypes];
+    for (i = 0; i < nelements; i++) combinations[i] = new int [ntypes];
+    idx = 0;
+    for (i = 0; i < nelements; i++)
+        for (j = i; j < nelements; j++)
+            combinations[i][j] = combinations[j][i] = idx++;
 
     // read potential file and initialize potential parameters
 
@@ -325,19 +334,6 @@ void PairNNP::read_file(char *file) {
 
     // title
     get_next_line(line, ptr, fp, nwords);
-
-
-    // // general information  =>  set in PairNNP::coeff
-    // get_next_line(line, ptr, fp, nwords);
-    // nelements = atoi(line);
-    // masters = new NNP *[nelements];
-    //
-    // get_next_line(line, ptr, fp, nwords);
-    // elements = new char *[nwords];
-    // for (i = 0; i < nwords; i++) {
-    //     elements[i] = new char[3];
-    //     strcpy(elements[i], strtok(i == 0 ? line : NULL, " \t\n\r\f"));
-    // }
 
 
     // symmetry function parameters
@@ -511,19 +507,16 @@ PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R, VectorXd &
     memory->destroy(r_);
 }
 
-void PairNNP::feature_index(int ctype, int *neighlist, int numneigh, int *iG2s, int **iG3s) {
+void PairNNP::feature_index(int *neighlist, int numneigh, int *iG2s, int **iG3s) {
     int i, j, itype, jtype;
     int *type = atom->type;
     for (i = 0; i < numneigh; i++) {
         itype = map[type[neighlist[i]]];
-        if (itype == ctype) iG2s[i] = 0;
-        else iG2s[i] = 1;
+        iG2s[i] = itype;
 
         for (j = 0; j < numneigh; j++) {
             jtype = map[type[neighlist[j]]];
-            if (itype == ctype && jtype == ctype) iG3s[i][j] = 0;
-            else if (itype != ctype && jtype != ctype) iG3s[i][j] = 1;
-            else iG3s[i][j] = 2;
+            iG3s[i][j] = combinations[itype][jtype];
         }
     }
 }
