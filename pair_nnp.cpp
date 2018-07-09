@@ -154,7 +154,7 @@ void PairNNP::compute(int eflag, int vflag) {
         dG_dz = Map<MatrixXd>(&dG_dr_raw[2][0][0], nfeature, jnum);
         memory->destroy(dG_dr_raw);
 
-        preconditioning(itype, G, dG_dx, dG_dy, dG_dz);
+        if (preproc_flag) (this->*preproc_func)(itype, G, dG_dx, dG_dy, dG_dz);
 
         masters[itype]->deriv(G, dE_dG);
 
@@ -387,14 +387,16 @@ void PairNNP::read_file(char *file) {
     }
 
 
-    // preconditioning parameters
+    // preprocess parameters
     get_next_line(line, ptr, fp, nwords);
     if (atoi(line)) {
+        preproc_flag = 1;
         get_next_line(line, ptr, fp, nwords);
-        precond = new char[10];
-        strcpy(precond, strtok(line, " \t\n\r\f"));
+        preproc = new char[10];
+        strcpy(preproc, strtok(line, " \t\n\r\f"));
 
-        if (strcmp(precond, "pca") == 0) {
+        if (strcmp(preproc, "pca") == 0) {
+            preproc_func = &PairNNP::PCA;
             components = new MatrixXd[nelements];
             mean = new VectorXd[nelements];
             for (i = 0; i < nelements; i++) {
@@ -427,7 +429,9 @@ void PairNNP::read_file(char *file) {
                 delete[] mean_raw;
             }
         }
-        delete[] precond;
+        delete[] preproc;
+    } else {
+        preproc_flag = 0;
     }
 
 
@@ -524,7 +528,7 @@ void PairNNP::feature_index(int ctype, int *neighlist, int numneigh, int *iG2s, 
     }
 }
 
-void PairNNP::preconditioning(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy, MatrixXd &dG_dz) {
+void PairNNP::PCA(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy, MatrixXd &dG_dz) {
     G = components[type] * (G - mean[type]);
     dG_dx = components[type] * dG_dx;
     dG_dy = components[type] * dG_dy;

@@ -2,19 +2,34 @@
 GaN neural network potential trained by HDNNP
 
 # symmetry function parameters
-5.0               // Rc
-0.0 0.01 0.1 1.0  // eta
-2.0 3.2 3.8       // Rs
--1.0 1.0          // lambda
-1.0 2.0 4.0       // zeta
+5.0                 // Rc
+0.0 0.01 0.1 1.0    // eta
+2.0 3.2 3.8         // Rs
+-1.0 1.0            // lambda
+1.0 2.0 4.0         // zeta
 
-# preconditioning parameters
-0                 // flag 1 if preconditioning is set
+# preprocess parameters
+1                   // flag 1 if preprocess is set, else 0
+pca                 // method
+
+Ga 2 5              // element, out size, in size
+# components
+0.0852851 0.307088 0.0851549 0.308185 0.0850465
+0.297891 0.0840766 0.289663 0.0835047 0.316399
+# mean
+0.479216 0.792801 0.472354 0.788308 0.478651
+
+N 2 5
+# components
+0.1 0.2 0.3 0.4 0.5
+-0.1 -0.2 -0.3 -0.4 -0.5
+# mean
+-2 -1 0 1 2
 
 # neural network parameters
-3                 // depth of neural network
+3                   // depth of neural network
 
-Ga 1 2 3 tanh     // element, depth, in size, out size, activation
+Ga 1 2 3 tanh       // element, depth, in size, out size, activation
 # weight
 0.6453437826308873 0.742684458937021 0.5176822649237571
 0.7434313793523288 0.3565197010122435 0.7354816264482255

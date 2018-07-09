@@ -50,10 +50,10 @@ namespace LAMMPS_NS {
         int nG1params, nG2params, nG4params;
         double **G1params, **G2params, **G4params;
         int nfeature;
-        char *precond;
+        char *preproc;
+        int preproc_flag;
         MatrixXd *components;
         VectorXd *mean;
-
 
         virtual void allocate();
 
@@ -67,7 +67,11 @@ namespace LAMMPS_NS {
 
         void feature_index(int, int *, int, int *, int **);
 
-        void preconditioning(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
+        typedef void (PairNNP::*FuncPtr)(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
+
+        FuncPtr preproc_func;
+
+        void PCA(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
     };
 
 }
