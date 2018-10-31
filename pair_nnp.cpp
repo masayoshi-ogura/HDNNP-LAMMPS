@@ -62,7 +62,7 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
 ------------------------------------------------------------------------- */
 
 PairNNP::~PairNNP() {
-    int i;
+    int i, j;
     if (copymode) return;
 
     if (combinations) for (i = 0; i < atom->ntypes; i++) delete[] combinations[i];
@@ -78,6 +78,10 @@ PairNNP::~PairNNP() {
     delete[] components;
     delete[] mean;
 
+    if (masters) for (i = 0; i < nelements; i++) {
+        for (j = 0; j < masters[i]->depth; j++) delete masters[i]->layers[j];
+        delete masters[i];
+    }
     delete[] masters;
 
     if (allocated) {
@@ -315,7 +319,7 @@ void PairNNP::read_file(char *file) {
     double *Rc, *eta, *Rs, *lambda, *zeta;
     int nRc, neta, nRs, nlambda, nzeta;
     char line[MAXLINE], *ptr;  // read data and pointer for each iteration
-    char *element, *activation;
+    char *preproc, *element, *activation;
     int depth, depthnum, insize, outsize;
     double *weight, *bias;
     double *components_raw, *mean_raw;
@@ -326,7 +330,7 @@ void PairNNP::read_file(char *file) {
         fp = force->open_potential(file);
         if (fp == NULL) {
             char str[128];
-            sprintf(str, "Cannot open Stillinger-Weber potential file %s", file);
+            sprintf(str, "Cannot open Neural Network Potential file %s", file);
             error->one(FLERR, str);
         }
     }
@@ -381,6 +385,11 @@ void PairNNP::read_file(char *file) {
             }
         }
     }
+    delete[] Rc;
+    delete[] eta;
+    delete[] Rs;
+    delete[] lambda;
+    delete[] zeta;
 
 
     // preprocess parameters

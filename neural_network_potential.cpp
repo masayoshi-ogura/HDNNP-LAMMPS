@@ -1,17 +1,13 @@
 #include "neural_network_potential.h"
 
 
-Layer::Layer(int in, int out) {
-    weight = MatrixXd::Random(out, in);
-    bias = VectorXd::Random(out);
-    set_activation("tanh");
-}
-
 Layer::Layer(int in, int out, double *w, double *b, char *act) {
     weight = Map<MatrixXd>(&w[0], out, in);
     bias = Map<VectorXd>(&b[0], out);
     set_activation(act);
 }
+
+Layer::~Layer() {}
 
 void Layer::tanh(VectorXd &input) {
     input = input.array().tanh();
@@ -61,17 +57,13 @@ void Layer::feedforward2(VectorXd &input, VectorXd &deriv) {
 }
 
 
-NNP::NNP() {
-    depth = 3;
-    layers = new Layer *[3];
-    layers[0] = new Layer(2, 3);
-    layers[1] = new Layer(3, 3);
-    layers[2] = new Layer(3, 1);
-}
-
 NNP::NNP(int n) {
     depth = n;
     layers = new Layer *[depth];
+}
+
+NNP::~NNP() {
+    delete[] layers;
 }
 
 void NNP::energy(VectorXd input, double &E) {

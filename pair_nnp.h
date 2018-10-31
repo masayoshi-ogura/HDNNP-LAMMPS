@@ -51,7 +51,6 @@ namespace LAMMPS_NS {
         int nG1params, nG2params, nG4params;
         double **G1params, **G2params, **G4params;
         int nfeature;
-        char *preproc;
         int preproc_flag;
         MatrixXd *components;
         VectorXd *mean;

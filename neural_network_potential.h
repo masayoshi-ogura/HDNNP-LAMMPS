@@ -43,9 +43,9 @@ public:
     MatrixXd weight;
     VectorXd bias;
 
-    Layer(int, int);
-
     Layer(int, int, double *, double *, char *);
+
+    ~Layer();
 
     void feedforward(VectorXd &);
 
@@ -58,9 +58,9 @@ public:
     int depth;
     Layer **layers;
 
-    NNP();
-
     NNP(int);
+
+    ~NNP();
 
     void energy(VectorXd, double &);
 
