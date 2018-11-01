@@ -51,14 +51,13 @@ namespace LAMMPS_NS {
         int nG1params, nG2params, nG4params;
         double **G1params, **G2params, **G4params;
         int nfeature;
-        char *preproc;
         int preproc_flag;
         MatrixXd *components;
         VectorXd *mean;
 
         virtual void allocate();
 
-        void get_next_line(char [], char *, FILE *, int &);
+        void get_next_line(ifstream &, stringstream &, int &);
 
         void read_file(char *);
 
