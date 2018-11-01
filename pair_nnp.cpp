@@ -294,7 +294,8 @@ double PairNNP::init_one(int i, int j) {
 
 /* ---------------------------------------------------------------------- */
 
-void PairNNP::get_next_line(string &line, ifstream &fin, stringstream &ss, int &nwords) {
+void PairNNP::get_next_line(ifstream &fin, stringstream &ss, int &nwords) {
+    string line;
     int n;
 
     // remove failbit
@@ -302,27 +303,23 @@ void PairNNP::get_next_line(string &line, ifstream &fin, stringstream &ss, int &
     // clear stringstream buffer
     ss.str("");
 
-    if (comm->me == 0) {
+    if (comm->me == 0)
         while (getline(fin, line))
             if (!line.empty() && line[0] != '#') break;
-        n = line.size();
-    }
-    MPI_Barrier(world);
 
+    n = line.size();
     MPI_Bcast(&n, 1, MPI_INT, 0, world);
     line.resize(n);
     
     MPI_Bcast(&line[0], n+1, MPI_CHAR, 0, world);
     nwords = atom->count_words(line.c_str());
     ss << line;
-
-    MPI_Barrier(world);
 }
 
 void PairNNP::read_file(char *file) {
     ifstream fin;
     stringstream ss;
-    string line, preproc, element, activation;
+    string preproc, element, activation;
     int i, j, k, l, nwords;
     int nRc, neta, nRs, nlambda, nzeta;
     int depth, depthnum, insize, outsize;
@@ -340,26 +337,26 @@ void PairNNP::read_file(char *file) {
     }
 
     // title
-    get_next_line(line, fin, ss, nwords);
+    get_next_line(fin, ss, nwords);
 
     // symmetry function parameters
-    get_next_line(line, fin, ss, nRc);
+    get_next_line(fin, ss, nRc);
     Rc = new double[nRc];
     for (i = 0; ss >> Rc[i]; i++);
 
-    get_next_line(line, fin, ss, neta);
+    get_next_line(fin, ss, neta);
     eta = new double[neta];
     for (i = 0; ss >> eta[i]; i++);
 
-    get_next_line(line, fin, ss, nRs);
+    get_next_line(fin, ss, nRs);
     Rs = new double[nRs];
     for (i = 0; ss >> Rs[i]; i++);
 
-    get_next_line(line, fin, ss, nlambda);
+    get_next_line(fin, ss, nlambda);
     lambda = new double[nlambda];
     for (i = 0; ss >> lambda[i]; i++);
 
-    get_next_line(line, fin, ss, nzeta);
+    get_next_line(fin, ss, nzeta);
     zeta = new double[nzeta];
     for (i = 0; ss >> zeta[i]; i++);
 
@@ -390,11 +387,11 @@ void PairNNP::read_file(char *file) {
 
 
     // preprocess parameters
-    get_next_line(line, fin, ss, nwords);
+    get_next_line(fin, ss, nwords);
     ss >> preproc_flag;
 
     if (preproc_flag) {
-        get_next_line(line, fin, ss, nwords);
+        get_next_line(fin, ss, nwords);
         ss >> preproc;
 
         if (preproc == "pca") {
@@ -402,17 +399,17 @@ void PairNNP::read_file(char *file) {
             components = new MatrixXd[nelements];
             mean = new VectorXd[nelements];
             for (i = 0; i < nelements; i++) {
-                get_next_line(line, fin, ss, nwords);
+                get_next_line(fin, ss, nwords);
                 ss >> element >> outsize >> insize;
                 components_raw = new double[insize * outsize];
                 mean_raw = new double[insize];
 
                 for (j = 0; j < outsize; j++) {
-                    get_next_line(line, fin, ss, nwords);
+                    get_next_line(fin, ss, nwords);
                     for (k = 0; ss >> components_raw[j*insize+k]; k++);
                 }
 
-                get_next_line(line, fin, ss, nwords);
+                get_next_line(fin, ss, nwords);
                 for (j = 0; ss >> mean_raw[j]; j++);
 
                 for (j = 0; j < nelements; j++)
@@ -428,23 +425,23 @@ void PairNNP::read_file(char *file) {
 
 
     // neural network parameters
-    get_next_line(line, fin, ss, nwords);
+    get_next_line(fin, ss, nwords);
     ss >> depth;
     for (i = 0; i < nelements; i++) masters[i] = new NNP(depth);
 
     for (i = 0; i < nelements * depth; i++) {
-        get_next_line(line, fin, ss, nwords);
+        get_next_line(fin, ss, nwords);
         ss >> element >> depthnum >> insize >> outsize >> activation;
         depthnum--;
         weight = new double[insize * outsize];
         bias = new double[outsize];
 
         for (j = 0; j < insize; j++) {
-            get_next_line(line, fin, ss, nwords);
+            get_next_line(fin, ss, nwords);
             for (k = 0; ss >> weight[j*outsize+k]; k++);
         }
 
-        get_next_line(line, fin, ss, nwords);
+        get_next_line(fin, ss, nwords);
         for (j = 0; ss >> bias[j]; j++);
 
         for (j = 0; j < nelements; j++)
