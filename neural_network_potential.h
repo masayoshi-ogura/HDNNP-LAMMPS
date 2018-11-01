@@ -17,7 +17,7 @@ using namespace Eigen;
 
 class Layer {
 private:
-    void set_activation(char *);
+    void set_activation(string);
 
     typedef void (Layer::*FuncPtr)(VectorXd &);
 
@@ -31,6 +31,10 @@ private:
 
     void deriv_tanh(VectorXd &, VectorXd &);
 
+    void elu(VectorXd &);
+
+    void deriv_elu(VectorXd &, VectorXd &);
+
     void sigmoid(VectorXd &);
 
     void deriv_sigmoid(VectorXd &, VectorXd &);
@@ -43,7 +47,7 @@ public:
     MatrixXd weight;
     VectorXd bias;
 
-    Layer(int, int, double *, double *, char *);
+    Layer(int, int, double *, double *, string);
 
     ~Layer();
 

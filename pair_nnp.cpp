@@ -314,7 +314,11 @@ void PairNNP::read_file(char *file) {
     double *components_raw, *mean_raw;
 
     ifstream fin(file);
-    if (!fin) return 1;
+    if (!fin) {
+        char str[128];
+        sprintf(str, "Cannot open neural network potential file %s", file);
+        error->one(FLERR, str);
+    }
 
     // title
     get_next_line(fin, ss, nwords);
