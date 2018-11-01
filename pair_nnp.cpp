@@ -20,6 +20,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <iomanip>
 #include "pair_nnp.h"
 #include "atom.h"
@@ -292,79 +294,51 @@ double PairNNP::init_one(int i, int j) {
 
 /* ---------------------------------------------------------------------- */
 
-void PairNNP::get_next_line(char line[], char *ptr, FILE *fp, int &nwords) {
-    int i, j, n;
-    int eof = 0;
-
-    if (comm->me == 0) {
-        ptr = fgets(line, MAXLINE, fp);
-        if (ptr == NULL) {
-            eof = 1;
-            fclose(fp);
-        } else n = strlen(line) + 1;
+void PairNNP::get_next_line(ifstream &fin, stringstream &ss, int &nwords) {
+    string line;
+    while (getline(fin, line)){
+        if (!line.empty()) break;
     }
-    MPI_Bcast(&eof, 1, MPI_INT, 0, world);
-    if (eof) return;
-    MPI_Bcast(&n, 1, MPI_INT, 0, world);
-    MPI_Bcast(line, n, MPI_CHAR, 0, world);
-
-    // skip line if blank
-
-    nwords = atom->count_words(line);
-    if (nwords == 0) get_next_line(line, ptr, fp, nwords);
+    nwords = atom->count_words(line.c_str());
+    ss << line;
 }
 
 void PairNNP::read_file(char *file) {
+    stringstream ss;
     int i, j, k, l, nwords;
     double *Rc, *eta, *Rs, *lambda, *zeta;
     int nRc, neta, nRs, nlambda, nzeta;
-    char line[MAXLINE], *ptr;  // read data and pointer for each iteration
-    char *preproc, *element, *activation;
+    string preproc, element, activation;
     int depth, depthnum, insize, outsize;
     double *weight, *bias;
     double *components_raw, *mean_raw;
 
-    // open file on proc 0
-    FILE *fp;
-    if (comm->me == 0) {
-        fp = force->open_potential(file);
-        if (fp == NULL) {
-            char str[128];
-            sprintf(str, "Cannot open Neural Network Potential file %s", file);
-            error->one(FLERR, str);
-        }
-    }
-
+    ifstream fin(file);
+    if (!fin) return 1;
 
     // title
-    get_next_line(line, ptr, fp, nwords);
-
+    get_next_line(fin, ss, nwords);
 
     // symmetry function parameters
-    get_next_line(line, ptr, fp, nRc);
+    get_next_line(fin, ss, nRc);
     Rc = new double[nRc];
-    Rc[0] = atof(strtok(line, " \t\n\r\f"));
-    for (i = 1; i < nRc; i++) Rc[i] = atof(strtok(NULL, " \t\n\r\f"));
+    for (i = 0; i < nRc; i++) ss >> Rc[i];
 
-    get_next_line(line, ptr, fp, neta);
+    get_next_line(fin, ss, neta);
     eta = new double[neta];
-    eta[0] = atof(strtok(line, " \t\n\r\f"));
-    for (i = 1; i < neta; i++) eta[i] = atof(strtok(NULL, " \t\n\r\f"));
+    for (i = 0; i < neta; i++) ss >> eta[i];
 
-    get_next_line(line, ptr, fp, nRs);
+    get_next_line(fin, ss, nRs);
     Rs = new double[nRs];
-    Rs[0] = atof(strtok(line, " \t\n\r\f"));
-    for (i = 1; i < nRs; i++) Rs[i] = atof(strtok(NULL, " \t\n\r\f"));
+    for (i = 0; i < nRs; i++) ss >> Rs[i];
 
-    get_next_line(line, ptr, fp, nlambda);
+    get_next_line(fin, ss, nlambda);
     lambda = new double[nlambda];
-    lambda[0] = atof(strtok(line, " \t\n\r\f"));
-    for (i = 1; i < nlambda; i++) lambda[i] = atof(strtok(NULL, " \t\n\r\f"));
+    for (i = 0; i < nlambda; i++) ss >> lambda[i];
 
-    get_next_line(line, ptr, fp, nzeta);
+    get_next_line(fin, ss, nzeta);
     zeta = new double[nzeta];
-    zeta[0] = atof(strtok(line, " \t\n\r\f"));
-    for (i = 1; i < nzeta; i++) zeta[i] = atof(strtok(NULL, " \t\n\r\f"));
+    for (i = 0; i < nzeta; i++) ss >> zeta[i];
 
     nG1params = nRc;
     nG2params = nRc * neta * nRs;
@@ -393,88 +367,76 @@ void PairNNP::read_file(char *file) {
 
 
     // preprocess parameters
-    get_next_line(line, ptr, fp, nwords);
-    if (atoi(line)) {
-        preproc_flag = 1;
-        get_next_line(line, ptr, fp, nwords);
-        preproc = new char[10];
-        strcpy(preproc, strtok(line, " \t\n\r\f"));
+    get_next_line(fin, ss, nwords);
+    ss >> preproc_flag;
+    if (preproc_flag) {
+        get_next_line(fin, ss, nwords);
+        ss >> preproc;
 
-        if (strcmp(preproc, "pca") == 0) {
+        if (preproc == "pca") {
             preproc_func = &PairNNP::PCA;
             components = new MatrixXd[nelements];
             mean = new VectorXd[nelements];
             for (i = 0; i < nelements; i++) {
-                get_next_line(line, ptr, fp, nwords);
-                element = new char[3];
-                strcpy(element, strtok(line, " \t\n\r\f"));
-                outsize = atoi(strtok(NULL, " \t\n\r\f"));
-                insize = atoi(strtok(NULL, " \t\n\r\f"));
+                get_next_line(fin, ss, nwords);
+                ss >> element;
+                ss >> outsize;
+                ss >> insize;
                 components_raw = new double[insize * outsize];
                 mean_raw = new double[insize];
 
                 for (j = 0; j < outsize; j++) {
-                    get_next_line(line, ptr, fp, nwords);
-                    components_raw[j * insize] = atof(strtok(line, " \t\n\r\f"));
-                    for (k = 1; k < insize; k++) components_raw[j * insize + k] = atof(strtok(NULL, " \t\n\r\f"));
+                    get_next_line(fin, ss, nwords);
+                    for (k = 0; k < insize; k++)
+                        ss >> components_raw[j * insize + k];
                 }
 
-                get_next_line(line, ptr, fp, nwords);
-                mean_raw[0] = atof(strtok(line, " \t\n\r\f"));
-                for (j = 1; j < insize; j++) mean_raw[j] = atof(strtok(NULL, " \t\n\r\f"));
+                get_next_line(fin, ss, nwords);
+                for (j = 0; j < insize; j++) ss >> mean_raw[j];
 
                 for (j = 0; j < nelements; j++) {
-                    if (strcmp(elements[j], element) == 0) {
+                    if (elements[j] == element) {
                         components[j] = Map<MatrixXd>(components_raw, insize, outsize).transpose();
                         mean[j] = Map<VectorXd>(mean_raw, insize);
                     }
                 }
-                delete[] element;
                 delete[] components_raw;
                 delete[] mean_raw;
             }
         }
-        delete[] preproc;
-    } else {
-        preproc_flag = 0;
     }
 
 
     // neural network parameters
-    get_next_line(line, ptr, fp, nwords);
-    depth = atoi(line);
+    get_next_line(fin, ss, nwords);
+    ss >> depth;
     for (i = 0; i < nelements; i++) masters[i] = new NNP(depth);
 
     for (i = 0; i < nelements * depth; i++) {
-        get_next_line(line, ptr, fp, nwords);
-        element = new char[3];
-        strcpy(element, strtok(line, " \t\n\r\f"));
-        depthnum = atoi(strtok(NULL, " \t\n\r\f")) - 1;
-        insize = atoi(strtok(NULL, " \t\n\r\f"));
-        outsize = atoi(strtok(NULL, " \t\n\r\f"));
-        activation = new char[10];
-        strcpy(activation, strtok(NULL, " \t\n\r\f"));
+        get_next_line(fin, ss, nwords);
+        ss >> element;
+        ss >> depthnum;
+        depthnum--;
+        ss >> insize;
+        ss >> outsize;
+        ss >> activation;
         weight = new double[insize * outsize];
         bias = new double[outsize];
 
         for (j = 0; j < insize; j++) {
-            get_next_line(line, ptr, fp, nwords);
-            weight[j * outsize] = atof(strtok(line, " \t\n\r\f"));
-            for (k = 1; k < outsize; k++)
-                weight[j * outsize + k] = atof(strtok(NULL, " \t\n\r\f"));
+            get_next_line(fin, ss, nwords);
+            for (k = 0; k < outsize; k++)
+                ss >> weight[j * outsize + k];
         }
 
-        get_next_line(line, ptr, fp, nwords);
-        bias[0] = atof(strtok(line, " \t\n\r\f"));
-        for (j = 1; j < outsize; j++) bias[j] = atof(strtok(NULL, " \t\n\r\f"));
+        get_next_line(fin, ss, nwords);
+        for (j = 0; j < outsize; j++) ss >> bias[j];
 
         for (j = 0; j < nelements; j++)
-            if (strcmp(elements[j], element) == 0)
+            if (elements[j] == element)
                 masters[j]->layers[depthnum] =
                         new Layer(insize, outsize, weight, bias, activation);
 
-        delete[] element;
-        delete[] activation;
         delete[] weight;
         delete[] bias;
     }
