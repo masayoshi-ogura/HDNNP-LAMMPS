@@ -57,7 +57,7 @@ namespace LAMMPS_NS {
 
         virtual void allocate();
 
-        void get_next_line(ifstream &, stringstream &, int &);
+        void get_next_line(string &, ifstream &, stringstream &, int &);
 
         void read_file(char *);
 
