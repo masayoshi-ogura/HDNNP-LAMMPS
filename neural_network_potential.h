@@ -8,68 +8,66 @@
 #define EIGEN_NO_DEBUG
 #define EIGEN_MPL2_ONLY
 
+#include <Eigen/Core>
 #include <iostream>
 #include <string>
-#include <Eigen/Core>
 
 using namespace std;
 using namespace Eigen;
 
 class Layer {
-private:
-    void set_activation(string);
+ private:
+  void set_activation(string);
 
-    typedef void (Layer::*FuncPtr)(VectorXd &);
+  typedef void (Layer::*FuncPtr)(VectorXd &);
 
-    typedef void (Layer::*FuncPtr2)(VectorXd &, VectorXd &);
+  typedef void (Layer::*FuncPtr2)(VectorXd &, VectorXd &);
 
-    FuncPtr activation;
+  FuncPtr activation;
 
-    FuncPtr2 activation2;
+  FuncPtr2 activation2;
 
-    void tanh(VectorXd &);
+  void tanh(VectorXd &);
 
-    void deriv_tanh(VectorXd &, VectorXd &);
+  void deriv_tanh(VectorXd &, VectorXd &);
 
-    void elu(VectorXd &);
+  void elu(VectorXd &);
 
-    void deriv_elu(VectorXd &, VectorXd &);
+  void deriv_elu(VectorXd &, VectorXd &);
 
-    void sigmoid(VectorXd &);
+  void sigmoid(VectorXd &);
 
-    void deriv_sigmoid(VectorXd &, VectorXd &);
+  void deriv_sigmoid(VectorXd &, VectorXd &);
 
-    void identity(VectorXd &);
+  void identity(VectorXd &);
 
-    void deriv_identity(VectorXd &, VectorXd &);
+  void deriv_identity(VectorXd &, VectorXd &);
 
-public:
-    MatrixXd weight;
-    VectorXd bias;
+ public:
+  MatrixXd weight;
+  VectorXd bias;
 
-    Layer(int, int, double *, double *, string);
+  Layer(int, int, double *, double *, string);
 
-    ~Layer();
+  ~Layer();
 
-    void feedforward(VectorXd &);
+  void feedforward(VectorXd &);
 
-    void feedforward2(VectorXd &, VectorXd &);
+  void feedforward2(VectorXd &, VectorXd &);
 };
-
 
 class NNP {
-public:
-    int depth;
-    Layer **layers;
+ public:
+  int depth;
+  Layer **layers;
 
-    NNP(int);
+  NNP(int);
 
-    ~NNP();
+  ~NNP();
 
-    void energy(VectorXd, double &);
+  void energy(VectorXd, double &);
 
-    void deriv(VectorXd, VectorXd &);
+  void deriv(VectorXd, VectorXd &);
 };
-
 
 #endif

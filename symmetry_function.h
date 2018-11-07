@@ -9,17 +9,20 @@
 #define EIGEN_NO_DEBUG
 #define EIGEN_MPL2_ONLY
 
+#include <Eigen/Core>
 #include <iostream>
 #include <string>
-#include <Eigen/Core>
 
 using namespace std;
 using namespace Eigen;
 
-void G1(double *, int, int *, int, VectorXd &, VectorXd *, double *, double ***);
+void G1(double *, int, int *, int, VectorXd &, VectorXd *, double *,
+        double ***);
 
-void G2(double *, int, int *, int, VectorXd &, VectorXd &, VectorXd *, double *, double ***);
+void G2(double *, int, int *, int, VectorXd &, VectorXd &, VectorXd *, double *,
+        double ***);
 
-void G4(double *, int, int **, int, VectorXd &, VectorXd &, MatrixXd &, VectorXd *, MatrixXd *, double *, double ***);
+void G4(double *, int, int **, int, VectorXd &, VectorXd &, MatrixXd &,
+        VectorXd *, MatrixXd *, double *, double ***);
 
-#endif //HDNNP_LAMMPS_SYMMETRY_FUNCTION_H
+#endif  // HDNNP_LAMMPS_SYMMETRY_FUNCTION_H
