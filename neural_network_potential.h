@@ -51,7 +51,7 @@ class NNP {
 
   ~NNP();
 
-  void feedforward(VectorXd, VectorXd &);
+  void feedforward(VectorXd, VectorXd &, int, double);
 };
 
 #endif

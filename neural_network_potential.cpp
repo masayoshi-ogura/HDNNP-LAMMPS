@@ -58,7 +58,8 @@ NNP::NNP(int n) {
 
 NNP::~NNP() { delete[] layers; }
 
-void NNP::feedforward(VectorXd input, VectorXd &dE_dG) {
+void NNP::feedforward(VectorXd input, VectorXd &dE_dG, int eflag,
+                      double &evdwl) {
   int i;
   VectorXd deriv[depth];
 
@@ -68,4 +69,6 @@ void NNP::feedforward(VectorXd input, VectorXd &dE_dG) {
     dE_dG = dE_dG.array() * deriv[i].array();
     dE_dG = dE_dG.transpose() * layers[i]->weight;
   }
+
+  if (eflag) evdwl = input(0);
 }

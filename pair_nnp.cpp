@@ -169,9 +169,7 @@ void PairNNP::compute(int eflag, int vflag) {
 
     if (preproc_flag) (this->*preproc_func)(itype, G, dG_dx, dG_dy, dG_dz);
 
-    masters[itype]->deriv(G, dE_dG);
-
-    if (eflag) evdwl = input(0);
+    masters[itype]->feedforward(G, dE_dG, eflag, evdwl);
 
     F[0].noalias() = dE_dG.transpose() * dG_dx;
     F[1].noalias() = dE_dG.transpose() * dG_dy;
@@ -191,8 +189,8 @@ void PairNNP::compute(int eflag, int vflag) {
 
       if (evflag) {
         delx = x[i][0] - x[j][0];
-        dely = y[i][0] - y[j][0];
-        delz = z[i][0] - z[j][0];
+        dely = x[i][1] - x[j][1];
+        delz = x[i][2] - x[j][2];
         fpair = (fx / delx + fy / dely + fz / delz) / 3.0;
         ev_tally(i, j, nlocal, newton_pair, evdwl, 0.0, fpair, delx, dely,
                  delz);
