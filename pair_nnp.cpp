@@ -100,11 +100,9 @@ PairNNP::~PairNNP() {
 /* ---------------------------------------------------------------------- */
 
 void PairNNP::compute(int eflag, int vflag) {
-  // only for eflag = vflag = 0
-
   int i, j, ii, jj, inum, jnum;
   int itype, jtype, iparam;
-  // double evdwl;
+  double delx, dely, delz, evdwl, fx, fy, fz, fpair;
   int *ilist, *jlist, *numneigh, **firstneigh;
   int *iG2s, **iG3s;
   VectorXd R, tanh, dR[3];
@@ -113,13 +111,17 @@ void PairNNP::compute(int eflag, int vflag) {
   double *G_raw, ***dG_dr_raw;
   MatrixXd dG_dx, dG_dy, dG_dz;
 
-  // evdwl = 0.0;
-  // if (eflag || vflag) ev_setup(eflag, vflag);
-  // else evflag = vflag_fdotr = 0;
+  evdwl = 0.0;
+  if (eflag || vflag)
+    ev_setup(eflag, vflag);
+  else
+    evflag = vflag_fdotr = 0;
 
   double **x = atom->x;
   double **f = atom->f;
   int *type = atom->type;
+  int nlocal = atom->nlocal;
+  int newton_pair = force->newton_pair;
 
   inum = list->inum;
   ilist = list->ilist;
@@ -157,8 +159,6 @@ void PairNNP::compute(int eflag, int vflag) {
     for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
     delete[] iG3s;
 
-    // if (eflag) masters[itype]->energy(nfeature, Gi, evdwl);
-
     G = Map<VectorXd>(G_raw, nfeature);
     memory->destroy(G_raw);
 
@@ -171,17 +171,36 @@ void PairNNP::compute(int eflag, int vflag) {
 
     masters[itype]->deriv(G, dE_dG);
 
+    if (eflag) evdwl = input(0);
+
     F[0].noalias() = dE_dG.transpose() * dG_dx;
     F[1].noalias() = dE_dG.transpose() * dG_dy;
     F[2].noalias() = dE_dG.transpose() * dG_dz;
 
     for (jj = 0; jj < jnum; jj++) {
       j = jlist[jj];
-      f[j][0] += -F[0](jj);
-      f[j][1] += -F[1](jj);
-      f[j][2] += -F[2](jj);
+      fx = F[0](jj);
+      fy = F[1](jj);
+      fz = F[2](jj);
+      f[j][0] += -fx;
+      f[j][1] += -fy;
+      f[j][2] += -fz;
+      f[i][0] += fx;
+      f[i][1] += fy;
+      f[i][2] += fz;
+
+      if (evflag) {
+        delx = x[i][0] - x[j][0];
+        dely = y[i][0] - y[j][0];
+        delz = z[i][0] - z[j][0];
+        fpair = (fx / delx + fy / dely + fz / delz) / 3.0;
+        ev_tally(i, j, nlocal, newton_pair, evdwl, 0.0, fpair, delx, dely,
+                 delz);
+      }
     }
   }
+
+  if (vflag_fdotr) virial_fdotr_compute();
 }
 
 /* ---------------------------------------------------------------------- */
@@ -475,6 +494,10 @@ void PairNNP::setup_params() {}
 void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
                        VectorXd &tanh, MatrixXd &cos, VectorXd *dR,
                        MatrixXd *dcos) {
+  // TODO
+  // この関数内でR＞Rcとなるペアを排除
+  // jlistとjnumを参照で受け取り、上書きするようなコードにする
+  // もしくは、元の配列が壊れるといけないので新しい配列と数値を作成して返す
   int i, n;
   double **x = atom->x;
   MatrixXd r, dR_;

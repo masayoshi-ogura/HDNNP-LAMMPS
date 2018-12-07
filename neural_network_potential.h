@@ -19,29 +19,17 @@ class Layer {
  private:
   void set_activation(string);
 
-  typedef void (Layer::*FuncPtr)(VectorXd &);
-
-  typedef void (Layer::*FuncPtr2)(VectorXd &, VectorXd &);
+  typedef void (Layer::*FuncPtr)(VectorXd &, VectorXd &);
 
   FuncPtr activation;
 
-  FuncPtr2 activation2;
+  void tanh(VectorXd &, VectorXd &);
 
-  void tanh(VectorXd &);
+  void elu(VectorXd &, VectorXd &);
 
-  void deriv_tanh(VectorXd &, VectorXd &);
+  void sigmoid(VectorXd &, VectorXd &);
 
-  void elu(VectorXd &);
-
-  void deriv_elu(VectorXd &, VectorXd &);
-
-  void sigmoid(VectorXd &);
-
-  void deriv_sigmoid(VectorXd &, VectorXd &);
-
-  void identity(VectorXd &);
-
-  void deriv_identity(VectorXd &, VectorXd &);
+  void identity(VectorXd &, VectorXd &);
 
  public:
   MatrixXd weight;
@@ -51,9 +39,7 @@ class Layer {
 
   ~Layer();
 
-  void feedforward(VectorXd &);
-
-  void feedforward2(VectorXd &, VectorXd &);
+  void feedforward(VectorXd &, VectorXd &);
 };
 
 class NNP {
@@ -65,9 +51,7 @@ class NNP {
 
   ~NNP();
 
-  void energy(VectorXd, double &);
-
-  void deriv(VectorXd, VectorXd &);
+  void feedforward(VectorXd, VectorXd &);
 };
 
 #endif
