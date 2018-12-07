@@ -100,7 +100,7 @@ PairNNP::~PairNNP() {
 /* ---------------------------------------------------------------------- */
 
 void PairNNP::compute(int eflag, int vflag) {
-  int i, j, ii, jj, inum, jnum;
+  int i, j, k, ii, jj, inum, jnum;
   int itype, jtype, iparam;
   double delx, dely, delz, evdwl, fx, fy, fz, fpair;
   int *ilist, *jlist, *numneigh, **firstneigh;
@@ -191,7 +191,12 @@ void PairNNP::compute(int eflag, int vflag) {
         delx = x[i][0] - x[j][0];
         dely = x[i][1] - x[j][1];
         delz = x[i][2] - x[j][2];
-        fpair = (fx / delx + fy / dely + fz / delz) / 3.0;
+        fpair = 0.0;
+        k = 0;
+        if (delx != 0.0) { fpair += fx / delx; k++; }
+        if (dely != 0.0) { fpair += fy / dely; k++; }
+        if (delz != 0.0) { fpair += fz / delz; k++; }
+        fpair /= k;
         ev_tally(i, j, nlocal, newton_pair, evdwl, 0.0, fpair, delx, dely,
                  delz);
       }
