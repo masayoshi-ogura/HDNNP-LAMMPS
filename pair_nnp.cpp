@@ -183,11 +183,6 @@ void PairNNP::compute(int eflag, int vflag) {
       f[j][0] += -fx;
       f[j][1] += -fy;
       f[j][2] += -fz;
-      if (newton_pair || j < nlocal) {
-        f[i][0] += fx;
-        f[i][1] += fy;
-        f[i][2] += fz;
-      }
 
       if (evflag) {
         delx = x[i][0] - x[j][0];
@@ -299,6 +294,8 @@ void PairNNP::coeff(int narg, char **arg) {
 ------------------------------------------------------------------------- */
 
 void PairNNP::init_style() {
+  if (force->newton_pair == 0)
+    error->all(FLERR,"Pair style Neural Network Potential requires newton pair on");
   // need a full neighbor list
 
   int irequest = neighbor->request(this, instance_me);

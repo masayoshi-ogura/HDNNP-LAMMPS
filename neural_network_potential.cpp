@@ -9,26 +9,32 @@ Layer::Layer(int in, int out, double *w, double *b, string act) {
 Layer::~Layer() {}
 
 void Layer::tanh(VectorXd &input, VectorXd &deriv) {
+  // return = tanh(x)
+  // deriv  = 1 - tanh(x)^2 = 1 - return^2
   input = input.array().tanh();
-  // (tanh)' = 1 - tanh^2
   deriv = 1.0 - input.array().square();
 }
 
 void Layer::elu(VectorXd &input, VectorXd &deriv) {
-  // (elu)' = 1 or exp (border:x=0)
-  deriv = (input.array() > 0)
-              .select(VectorXd::Ones(input.size()), input.array().exp());
-  // elu = x or exp-1 (border:x=0)
-  input = (input.array() > 0).select(input, input.array().exp() - 1.0);
+  // return = exp(x) - 1, when x < 0
+  //          x         , when x > 0
+  // deriv  = exp(x)    , when x < 0
+  //          1         , when x > 0
+  // DON'T CHANGE ORDER OF FOLLOWING CALCULATIONS !!!
+  deriv = (input.array() < 0).select(input.array().exp(), VectorXd::Ones(input.size()));
+  input = (input.array() < 0).select(input.array().exp() - 1.0, input);
 }
 
 void Layer::sigmoid(VectorXd &input, VectorXd &deriv) {
+  // return = sigmoid(x)
+  // deriv  = sigmoid(x) * (1-sigmoid(x)) = return * (1-return)
   input = 1.0 / (1.0 + (-input).array().exp());
-  // (sigmoid)' = sigmoid * (1-sigmoid)
   deriv = input.array() * (1.0 - input.array());
 }
 
 void Layer::identity(VectorXd &input, VectorXd &deriv) {
+  // return = x
+  // deriv  = 1
   deriv = VectorXd::Ones(input.size());
 }
 
