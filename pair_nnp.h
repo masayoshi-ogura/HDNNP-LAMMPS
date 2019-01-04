@@ -44,6 +44,8 @@ class PairNNP : public Pair {
 
  protected:
   int nelements;       // # of unique elements
+  int ntwobody;        // # of 2-body combinations
+  int nthreebody;      // # of 3-body combinations
   int **combinations;  // index of combination of 2 element
   char **elements;     // names of unique elements
   int *map;            // mapping from atom types to elements

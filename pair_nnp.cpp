@@ -148,12 +148,16 @@ void PairNNP::compute(int eflag, int vflag) {
     for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
     feature_index(jlist, jnum, iG2s, iG3s);
     for (iparam = 0; iparam < nG1params; iparam++)
-      G1(G1params[iparam], 2 * iparam, iG2s, jnum, tanh, dR, G_raw, dG_dr_raw);
+      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, tanh, dR, G_raw,
+         dG_dr_raw);
     for (iparam = 0; iparam < nG2params; iparam++)
-      G2(G2params[iparam], 2 * (nG1params + iparam), iG2s, jnum, R, tanh, dR,
+      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R, tanh,
+         dR,
          G_raw, dG_dr_raw);
     for (iparam = 0; iparam < nG4params; iparam++)
-      G4(G4params[iparam], 2 * (nG1params + nG2params) + 3 * iparam, iG3s, jnum,
+      G4(G4params[iparam],
+         ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s,
+         jnum,
          R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
     delete[] iG2s;
     for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
@@ -190,9 +194,18 @@ void PairNNP::compute(int eflag, int vflag) {
         delz = x[i][2] - x[j][2];
         fpair = 0.0;
         k = 0;
-        if (delx != 0.0) { fpair += fx / delx; k++; }
-        if (dely != 0.0) { fpair += fy / dely; k++; }
-        if (delz != 0.0) { fpair += fz / delz; k++; }
+        if (delx != 0.0) {
+          fpair += fx / delx;
+          k++;
+        }
+        if (dely != 0.0) {
+          fpair += fy / dely;
+          k++;
+        }
+        if (delz != 0.0) {
+          fpair += fz / delz;
+          k++;
+        }
         fpair /= k;
         ev_tally(i, j, nlocal, newton_pair, evdwl, 0.0, fpair, delx, dely,
                  delz);
@@ -274,6 +287,8 @@ void PairNNP::coeff(int narg, char **arg) {
   for (i = 0; i < nelements; i++)
     for (j = i; j < nelements; j++)
       combinations[i][j] = combinations[j][i] = idx++;
+  ntwobody = nelements;
+  nthreebody = idx;
 
   // read potential file and initialize potential parameters
 
@@ -295,7 +310,8 @@ void PairNNP::coeff(int narg, char **arg) {
 
 void PairNNP::init_style() {
   if (force->newton_pair == 0)
-    error->all(FLERR,"Pair style Neural Network Potential requires newton pair on");
+    error->all(FLERR,
+               "Pair style Neural Network Potential requires newton pair on");
   // need a full neighbor list
 
   int irequest = neighbor->request(this, instance_me);
@@ -385,7 +401,7 @@ void PairNNP::read_file(char *file) {
   nG1params = nRc;
   nG2params = nRc * neta * nRs;
   nG4params = nRc * neta * nlambda * nzeta;
-  nfeature = 2 * nG1params + 2 * nG2params + 3 * nG4params;
+  nfeature = ntwobody * (nG1params + nG2params) + nthreebody * nG4params;
   G1params = new double *[nG1params];
   G2params = new double *[nG2params];
   G4params = new double *[nG4params];
