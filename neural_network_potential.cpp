@@ -8,68 +8,53 @@ Layer::Layer(int in, int out, double *w, double *b, string act) {
 
 Layer::~Layer() {}
 
-void Layer::tanh(VectorXd &input) { input = input.array().tanh(); }
-
-void Layer::deriv_tanh(VectorXd &input, VectorXd &deriv) {
+void Layer::tanh(VectorXd &input, VectorXd &deriv) {
+  // return = tanh(x)
+  // deriv  = 1 - tanh(x)^2 = 1 - return^2
   input = input.array().tanh();
-  // (tanh)' = 1 - tanh^2
   deriv = 1.0 - input.array().square();
 }
 
-void Layer::elu(VectorXd &input) {
-  input = (input.array() > 0).select(input, input.array().exp() - 1.0);
+void Layer::elu(VectorXd &input, VectorXd &deriv) {
+  // return = exp(x) - 1, when x < 0
+  //          x         , when x > 0
+  // deriv  = exp(x)    , when x < 0
+  //          1         , when x > 0
+  // DON'T CHANGE ORDER OF FOLLOWING CALCULATIONS !!!
+  deriv = (input.array() < 0).select(input.array().exp(), VectorXd::Ones(input.size()));
+  input = (input.array() < 0).select(input.array().exp() - 1.0, input);
 }
 
-void Layer::deriv_elu(VectorXd &input, VectorXd &deriv) {
-  // (elu)' = 1 or exp (border:x=0)
-  deriv = (input.array() > 0)
-              .select(VectorXd::Ones(input.size()), input.array().exp());
-  // elu = x or exp-1 (border:x=0)
-  input = (input.array() > 0).select(input, input.array().exp() - 1.0);
-}
-
-void Layer::sigmoid(VectorXd &input) {
+void Layer::sigmoid(VectorXd &input, VectorXd &deriv) {
+  // return = sigmoid(x)
+  // deriv  = sigmoid(x) * (1-sigmoid(x)) = return * (1-return)
   input = 1.0 / (1.0 + (-input).array().exp());
-}
-
-void Layer::deriv_sigmoid(VectorXd &input, VectorXd &deriv) {
-  input = 1.0 / (1.0 + (-input).array().exp());
-  // (sigmoid)' = sigmoid * (1-sigmoid)
   deriv = input.array() * (1.0 - input.array());
 }
 
-void Layer::identity(VectorXd &input) {}
-
-void Layer::deriv_identity(VectorXd &input, VectorXd &deriv) {
+void Layer::identity(VectorXd &input, VectorXd &deriv) {
+  // return = x
+  // deriv  = 1
   deriv = VectorXd::Ones(input.size());
 }
 
 void Layer::set_activation(string act) {
   if (act == "tanh") {
     activation = &Layer::tanh;
-    activation2 = &Layer::deriv_tanh;
   } else if (act == "elu") {
     activation = &Layer::elu;
-    activation2 = &Layer::deriv_elu;
   } else if (act == "sigmoid") {
     activation = &Layer::sigmoid;
-    activation2 = &Layer::deriv_sigmoid;
   } else if (act == "identity") {
     activation = &Layer::identity;
-    activation2 = &Layer::deriv_identity;
   } else {
     cout << "ERROR!! not implemented ACTIVATION FUNCTION!!" << endl;
   }
 }
 
-void Layer::feedforward(VectorXd &input) {
+void Layer::feedforward(VectorXd &input, VectorXd &deriv) {
   input = (weight * input).colwise() + bias;
-  (this->*activation)(input);
-}
-
-void Layer::feedforward2(VectorXd &input, VectorXd &deriv) {
-  input = (weight * input).colwise() + bias;
-  (this->*activation2)(input, deriv);
+  (this->*activation)(input, deriv);
 }
 
 NNP::NNP(int n) {
@@ -79,20 +64,17 @@ NNP::NNP(int n) {
 
 NNP::~NNP() { delete[] layers; }
 
-void NNP::energy(VectorXd input, double &E) {
-  int i;
-  for (i = 0; i < depth; i++) layers[i]->feedforward(input);
-  E += input(0);
-}
-
-void NNP::deriv(VectorXd input, VectorXd &dE_dG) {
+void NNP::feedforward(VectorXd input, VectorXd &dE_dG, int eflag,
+                      double &evdwl) {
   int i;
   VectorXd deriv[depth];
 
-  for (i = 0; i < depth; i++) layers[i]->feedforward2(input, deriv[i]);
+  for (i = 0; i < depth; i++) layers[i]->feedforward(input, deriv[i]);
   dE_dG = VectorXd::Ones(1);
   for (i = depth - 1; i >= 0; i--) {
     dE_dG = dE_dG.array() * deriv[i].array();
     dE_dG = dE_dG.transpose() * layers[i]->weight;
   }
+
+  if (eflag) evdwl = input(0);
 }
