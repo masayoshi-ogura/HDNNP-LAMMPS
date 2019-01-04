@@ -16,7 +16,7 @@
 using namespace std;
 using namespace Eigen;
 
-void G1(double *, int, int *, int, VectorXd &, VectorXd *, double *,
+void G1(double *, int, int *, int, VectorXd &, VectorXd &, VectorXd *, double *,
         double ***);
 
 void G2(double *, int, int *, int, VectorXd &, VectorXd &, VectorXd *, double *,

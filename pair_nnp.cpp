@@ -148,16 +148,14 @@ void PairNNP::compute(int eflag, int vflag) {
     for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
     feature_index(jlist, jnum, iG2s, iG3s);
     for (iparam = 0; iparam < nG1params; iparam++)
-      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, tanh, dR, G_raw,
+      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, tanh, dR, G_raw,
          dG_dr_raw);
     for (iparam = 0; iparam < nG2params; iparam++)
       G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R, tanh,
-         dR,
-         G_raw, dG_dr_raw);
+         dR, G_raw, dG_dr_raw);
     for (iparam = 0; iparam < nG4params; iparam++)
       G4(G4params[iparam],
-         ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s,
-         jnum,
+         ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s, jnum,
          R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
     delete[] iG2s;
     for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
