@@ -43,6 +43,7 @@ class PairNNP : public Pair {
   virtual void init_style();
 
  protected:
+  double cutmax;       // max cutoff for all elements
   int nelements;       // # of unique elements
   int ntwobody;        // # of 2-body combinations
   int nthreebody;      // # of 3-body combinations
@@ -71,7 +72,7 @@ class PairNNP : public Pair {
 
   virtual void setup_params();
 
-  void geometry(int, int *, int, VectorXd &, VectorXd &, MatrixXd &, VectorXd *,
+  void geometry(int, int *, int, VectorXd &, MatrixXd &, VectorXd *,
                 MatrixXd *);
 
   void feature_index(int *, int, int *, int **);

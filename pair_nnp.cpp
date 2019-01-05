@@ -110,7 +110,7 @@ void PairNNP::compute(int eflag, int vflag) {
   double delx, dely, delz, evdwl, fx, fy, fz, fpair;
   int *ilist, *jlist, *numneigh, **firstneigh;
   int *iG2s, **iG3s;
-  VectorXd R, tanh, dR[3];
+  VectorXd R, dR[3];
   MatrixXd cos, dcos[3];
   VectorXd G, dE_dG, F[3];
   double *G_raw, ***dG_dr_raw;
@@ -139,7 +139,7 @@ void PairNNP::compute(int eflag, int vflag) {
     jlist = firstneigh[i];  // indices of J neighbors of I atom
     jnum = numneigh[i];     // # of J neighbors of I atom
 
-    geometry(i, jlist, jnum, R, tanh, cos, dR, dcos);
+    geometry(i, jlist, jnum, R, cos, dR, dcos);
 
     memory->create(G_raw, nfeature, "G");
     memory->create(dG_dr_raw, 3, jnum, nfeature, "dG_dr");
@@ -153,15 +153,15 @@ void PairNNP::compute(int eflag, int vflag) {
     for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
     feature_index(jlist, jnum, iG2s, iG3s);
     for (iparam = 0; iparam < nG1params; iparam++)
-      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, tanh, dR, G_raw,
+      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, dR, G_raw,
          dG_dr_raw);
     for (iparam = 0; iparam < nG2params; iparam++)
-      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R, tanh,
+      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R,
          dR, G_raw, dG_dr_raw);
     for (iparam = 0; iparam < nG4params; iparam++)
       G4(G4params[iparam],
          ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s, jnum,
-         R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
+         R, cos, dR, dcos, G_raw, dG_dr_raw);
     delete[] iG2s;
     for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
     delete[] iG3s;
@@ -247,7 +247,6 @@ void PairNNP::settings(int narg, char **arg) {
 void PairNNP::coeff(int narg, char **arg) {
   int i, j, n, idx;
   int ntypes = atom->ntypes;
-  double max_cutoff = 0.0;
 
   if (!allocated) allocate();
 
@@ -302,16 +301,17 @@ void PairNNP::coeff(int narg, char **arg) {
   read_file(arg[2]);
   setup_params();
 
+  cutmax = 0.0;
   for (i = 0; i < nG1params; i++)
-    if (G1params[i][0] > max_cutoff) max_cutoff = G1params[i][0];
+    if (G1params[i][0] > cutmax) cutmax = G1params[i][0];
   for (i = 0; i < nG2params; i++)
-    if (G2params[i][0] > max_cutoff) max_cutoff = G2params[i][0];
+    if (G2params[i][0] > cutmax) cutmax = G2params[i][0];
   for (i = 0; i < nG4params; i++)
-    if (G4params[i][0] > max_cutoff) max_cutoff = G4params[i][0];
+    if (G4params[i][0] > cutmax) cutmax = G4params[i][0];
 
   for (i = 1; i < ntypes + 1; i++) {
     for (j = 1; j < ntypes + 1; j++) {
-      cutsq[i][j] = max_cutoff * max_cutoff;
+      cutsq[i][j] = cutmax * cutmax;
       setflag[i][j] = 1;
     }
   }
@@ -336,7 +336,12 @@ void PairNNP::init_style() {
    init for one type pair i,j and corresponding j,i
 ------------------------------------------------------------------------- */
 
-double PairNNP::init_one(int i, int j) { return G1params[nG1params - 1][0]; }
+double PairNNP::init_one(int i, int j)
+{
+  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+
+  return cutmax;
+}
 
 /* ---------------------------------------------------------------------- */
 
@@ -477,7 +482,7 @@ void PairNNP::read_file(char *file) {
         for (k = 0; ss >> scl_max_raw[k]; k++)
           ;
 
-        get_next_line(finx, ss, nwords);
+        get_next_line(fin, ss, nwords);
         for (k = 0; ss >> scl_min_raw[k]; k++)
           ;
 
@@ -504,7 +509,7 @@ void PairNNP::read_file(char *file) {
         for (k = 0; ss >> std_mean_raw[k]; k++)
           ;
 
-        get_next_line(finx, ss, nwords);
+        get_next_line(fin, ss, nwords);
         for (k = 0; ss >> std_std_raw[k]; k++)
           ;
 
@@ -558,12 +563,7 @@ void PairNNP::setup_params() {}
 /* ---------------------------------------------------------------------- */
 
 void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
-                       VectorXd &tanh, MatrixXd &cos, VectorXd *dR,
-                       MatrixXd *dcos) {
-  // TODO
-  // この関数内でR＞Rcとなるペアを排除
-  // jlistとjnumを参照で受け取り、上書きするようなコードにする
-  // もしくは、元の配列が壊れるといけないので新しい配列と数値を作成して返す
+                       MatrixXd &cos, VectorXd *dR, MatrixXd *dcos) {
   int i, n;
   double **x = atom->x;
   MatrixXd r, dR_;
@@ -579,8 +579,6 @@ void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
 
   r = Map<MatrixXd>(&r_[0][0], 3, numneigh);
   R = r.colwise().norm();
-  for (i = 0; i < nG1params; i++)
-    tanh = (1.0 - R.array() / G1params[i][0]).tanh();
   dR_ = r.array().rowwise() / R.transpose().array();
   cos.noalias() = dR_.transpose() * dR_;
   for (i = 0; i < 3; i++) {
@@ -617,21 +615,20 @@ void PairNNP::pca(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
 
 void PairNNP::scaling(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
                       MatrixXd &dG_dz) {
-  G = (G - scl_min[type]) / (scl_max[type] - scl_min[type]) *
-          (scl_target_max - scl_target_min) +
-      scl_target_min;
-  dG_dx = dG_dx / (scl_max[type] - scl_min[type]) *
+  G = ((G - scl_min[type]).array() * (scl_max[type] - scl_min[type]).array().inverse() *
+          (scl_target_max - scl_target_min)).array() + scl_target_min;
+  dG_dx = dG_dx.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
-  dG_dy = dG_dy / (scl_max[type] - scl_min[type]) *
+  dG_dy = dG_dy.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
-  dG_dz = dG_dz / (scl_max[type] - scl_min[type]) *
+  dG_dz = dG_dz.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
 }
 
 void PairNNP::standardization(int type, VectorXd &G, MatrixXd &dG_dx,
                               MatrixXd &dG_dy, MatrixXd &dG_dz) {
-  G = (G - std_mean[type]) / std_std[type];
-  dG_dx = dG_dx / std_std[type];
-  dG_dy = dG_dy / std_std[type];
-  dG_dz = dG_dz / std_std[type];
+  G = (G - std_mean[type]).array() * std_std[type].array().inverse();
+  dG_dx = dG_dx.array().colwise() * std_std[type].array().inverse();
+  dG_dy = dG_dy.array().colwise() * std_std[type].array().inverse();
+  dG_dz = dG_dz.array().colwise() * std_std[type].array().inverse();
 }
