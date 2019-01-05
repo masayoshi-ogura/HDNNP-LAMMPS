@@ -375,9 +375,6 @@ void PairNNP::read_file(char *file) {
     }
   }
 
-  // title
-  get_next_line(fin, ss, nwords);
-
   // symmetry function parameters
   nG1params = 0;
   nG2params = 0;
