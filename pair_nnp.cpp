@@ -52,8 +52,8 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
   masters = NULL;
   nG1params = nG2params = nG4params = 0;
   G1params = G2params = G4params = NULL;
-  components = NULL;
-  mean = NULL;
+  pca_transform = NULL;
+  pca_mean = NULL;
   map = NULL;
 }
 
@@ -80,8 +80,8 @@ PairNNP::~PairNNP() {
   if (G4params)
     for (i = 0; i < nG1params; i++) delete[] G4params[i];
   delete[] G4params;
-  delete[] components;
-  delete[] mean;
+  delete[] pca_transform;
+  delete[] pca_mean;
 
   if (masters)
     for (i = 0; i < nelements; i++) {
@@ -100,7 +100,7 @@ PairNNP::~PairNNP() {
 /* ---------------------------------------------------------------------- */
 
 void PairNNP::compute(int eflag, int vflag) {
-  int i, j, k, ii, jj, inum, jnum;
+  int i, j, k, ii, jj, inum, jnum, p;
   int itype, jtype, iparam;
   double delx, dely, delz, evdwl, fx, fy, fz, fpair;
   int *ilist, *jlist, *numneigh, **firstneigh;
@@ -169,7 +169,9 @@ void PairNNP::compute(int eflag, int vflag) {
     dG_dz = Map<MatrixXd>(&dG_dr_raw[2][0][0], nfeature, jnum);
     memory->destroy(dG_dr_raw);
 
-    if (preproc_flag) (this->*preproc_func)(itype, G, dG_dx, dG_dy, dG_dz);
+    for (p = 0; p < npreprocess; p++) {
+      (this->*preprocesses[p])(itype, G, dG_dx, dG_dy, dG_dz);
+    }
 
     masters[itype]->feedforward(G, dE_dG, eflag, evdwl);
 
@@ -350,12 +352,14 @@ void PairNNP::get_next_line(ifstream &fin, stringstream &ss, int &nwords) {
 void PairNNP::read_file(char *file) {
   ifstream fin;
   stringstream ss;
-  string preproc, element, activation;
+  string preprocess, element, activation;
   int i, j, k, l, nwords;
   int nRc, neta, nRs, nlambda, nzeta;
   int depth, depthnum, insize, outsize;
   double *Rc, *eta, *Rs, *lambda, *zeta;
-  double *components_raw, *mean_raw;
+  double *pca_transform_raw, *pca_mean_raw;
+  double *scl_max_raw, *scl_min_raw;
+  double *std_mean_raw, *std_std_raw;
   double *weight, *bias;
 
   if (comm->me == 0) {
@@ -425,40 +429,98 @@ void PairNNP::read_file(char *file) {
 
   // preprocess parameters
   get_next_line(fin, ss, nwords);
-  ss >> preproc_flag;
+  ss >> npreprocess;
+  preprocesses = new FuncPtr[npreprocess];
 
-  if (preproc_flag) {
+  for (i = 0; i < npreprocess; i++) {
     get_next_line(fin, ss, nwords);
-    ss >> preproc;
+    ss >> preprocess;
 
-    if (preproc == "pca") {
-      preproc_func = &PairNNP::PCA;
-      components = new MatrixXd[nelements];
-      mean = new VectorXd[nelements];
-      for (i = 0; i < nelements; i++) {
+    if (preprocess == "pca") {
+      preprocesses[i] = &PairNNP::pca;
+      pca_transform = new MatrixXd[nelements];
+      pca_mean = new VectorXd[nelements];
+      for (j = 0; j < nelements; j++) {
         get_next_line(fin, ss, nwords);
         ss >> element >> outsize >> insize;
-        components_raw = new double[insize * outsize];
-        mean_raw = new double[insize];
+        pca_transform_raw = new double[insize * outsize];
+        pca_mean_raw = new double[insize];
 
-        for (j = 0; j < outsize; j++) {
+        for (k = 0; k < outsize; k++) {
           get_next_line(fin, ss, nwords);
-          for (k = 0; ss >> components_raw[j * insize + k]; k++)
+          for (l = 0; ss >> pca_transform_raw[k * insize + l]; l++)
             ;
         }
 
         get_next_line(fin, ss, nwords);
-        for (j = 0; ss >> mean_raw[j]; j++)
+        for (k = 0; ss >> pca_mean_raw[k]; k++)
           ;
 
-        for (j = 0; j < nelements; j++)
-          if (elements[j] == element) {
-            components[j] =
-                Map<MatrixXd>(components_raw, insize, outsize).transpose();
-            mean[j] = Map<VectorXd>(mean_raw, insize);
+        for (k = 0; k < nelements; k++)
+          if (elements[k] == element) {
+            pca_transform[k] =
+                Map<MatrixXd>(pca_transform_raw, insize, outsize).transpose();
+            pca_mean[k] = Map<VectorXd>(pca_mean_raw, insize);
           }
-        delete[] components_raw;
-        delete[] mean_raw;
+        delete[] pca_transform_raw;
+        delete[] pca_mean_raw;
+      }
+    } else if (preprocess == "scaling") {
+      preprocesses[i] = &PairNNP::scaling;
+      scl_max = new VectorXd[nelements];
+      scl_min = new VectorXd[nelements];
+
+      get_next_line(fin, ss, nwords);
+      ss >> scl_target_max >> scl_target_min;
+
+      for (j = 0; j < nelements; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> element >> size;
+        scl_max_raw = new double[size];
+        scl_min_raw = new double[size];
+
+        get_next_line(fin, ss, nwords);
+        for (k = 0; ss >> scl_max_raw[k]; k++)
+          ;
+
+        get_next_line(finx, ss, nwords);
+        for (k = 0; ss >> scl_min_raw[k]; k++)
+          ;
+
+        for (k = 0; k < nelements; k++)
+          if (elements[k] == element) {
+            scl_max[k] = Map<VectorXd>(scl_max_raw, size);
+            scl_min[k] = Map<VectorXd>(scl_min_raw, size);
+          }
+        delete[] scl_max_raw;
+        delete[] scl_min_raw;
+      }
+    } else if (preprocess == "standardization") {
+      preprocesses[i] = &PairNNP::standardization;
+      std_mean = new VectorXd[nelements];
+      std_std = new VectorXd[nelements];
+
+      for (j = 0; j < nelements; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> element >> size;
+        std_mean_raw = new double[size];
+        std_std_raw = new double[size];
+
+        get_next_line(fin, ss, nwords);
+        for (k = 0; ss >> std_mean_raw[k]; k++)
+          ;
+
+        get_next_line(finx, ss, nwords);
+        for (k = 0; ss >> std_std_raw[k]; k++)
+          ;
+
+        for (k = 0; k < nelements; k++)
+          if (elements[k] == element) {
+            std_mean[k] = Map<VectorXd>(std_mean_raw, size);
+            std_std[k] = Map<VectorXd>(std_std_raw, size);
+          }
+        delete[] std_mean_raw;
+        delete[] std_std_raw;
       }
     }
   }
@@ -552,10 +614,31 @@ void PairNNP::feature_index(int *neighlist, int numneigh, int *iG2s,
   }
 }
 
-void PairNNP::PCA(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
+void PairNNP::pca(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
                   MatrixXd &dG_dz) {
-  G = components[type] * (G - mean[type]);
-  dG_dx = components[type] * dG_dx;
-  dG_dy = components[type] * dG_dy;
-  dG_dz = components[type] * dG_dz;
+  G = pca_transform[type] * (G - pca_mean[type]);
+  dG_dx = pca_transform[type] * dG_dx;
+  dG_dy = pca_transform[type] * dG_dy;
+  dG_dz = pca_transform[type] * dG_dz;
+}
+
+void PairNNP::scaling(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
+                      MatrixXd &dG_dz) {
+  G = (G - scl_min[type]) / (scl_max[type] - scl_min[type]) *
+          (scl_target_max - scl_target_min) +
+      scl_target_min;
+  dG_dx = dG_dx / (scl_max[type] - scl_min[type]) *
+          (scl_target_max - scl_target_min);
+  dG_dy = dG_dy / (scl_max[type] - scl_min[type]) *
+          (scl_target_max - scl_target_min);
+  dG_dz = dG_dz / (scl_max[type] - scl_min[type]) *
+          (scl_target_max - scl_target_min);
+}
+
+void PairNNP::standardization(int type, VectorXd &G, MatrixXd &dG_dx,
+                              MatrixXd &dG_dy, MatrixXd &dG_dz) {
+  G = (G - std_mean[type]) / std_std[type];
+  dG_dx = dG_dx / std_std[type];
+  dG_dy = dG_dy / std_std[type];
+  dG_dz = dG_dz / std_std[type];
 }

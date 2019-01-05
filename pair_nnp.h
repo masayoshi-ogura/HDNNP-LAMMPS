@@ -53,9 +53,15 @@ class PairNNP : public Pair {
   int nG1params, nG2params, nG4params;
   double **G1params, **G2params, **G4params;
   int nfeature;
-  int preproc_flag;
-  MatrixXd *components;
-  VectorXd *mean;
+  int npreprocess;
+  MatrixXd *pca_transform;
+  VectorXd *pca_mean;
+  VectorXd *scl_max;
+  VectorXd *scl_min;
+  double scl_target_max;
+  double scl_target_min;
+  VectorXd *std_mean;
+  VectorXd *std_std;
 
   virtual void allocate();
 
@@ -73,9 +79,13 @@ class PairNNP : public Pair {
   typedef void (PairNNP::*FuncPtr)(int, VectorXd &, MatrixXd &, MatrixXd &,
                                    MatrixXd &);
 
-  FuncPtr preproc_func;
+  FuncPtr *preprocesses;
 
-  void PCA(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
+  void pca(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
+
+  void scaling(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
+
+  void standardization(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
 };
 
 }  // namespace LAMMPS_NS

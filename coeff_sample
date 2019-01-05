@@ -9,8 +9,27 @@ GaN neural network potential trained by HDNNP
 1.0 2.0 4.0         // zeta
 
 # preprocess parameters
-1                   // flag 1 if preprocess is set, else 0
-pca                 // method
+2                   // number of preprocess
+
+scaling             // 1st preprocess name
+
+# target range
+1.0 -1.0            // target max & min
+
+Ga 5                // element, size
+# max
+0.8 0.9 1.0 1.1 1.2
+# min
+-0.8 -0.9 -1.0 -1.1 -1.2
+
+N 5                // element, size
+# max
+0.8 0.9 1.0 1.1 1.2
+# min
+-0.8 -0.9 -1.0 -1.1 -1.2
+
+
+pca                 // 2nd preprocess name
 
 Ga 2 5              // element, out size, in size
 # components
