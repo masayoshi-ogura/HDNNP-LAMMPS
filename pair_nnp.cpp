@@ -311,8 +311,7 @@ void PairNNP::coeff(int narg, char **arg) {
 
   for (i = 1; i < ntypes + 1; i++) {
     for (j = 1; j < ntypes + 1; j++) {
-      for
-        cutsq[i][j] = max_cutoff * max_cutoff;
+      cutsq[i][j] = max_cutoff * max_cutoff;
       setflag[i][j] = 1;
     }
   }
