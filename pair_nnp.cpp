@@ -75,13 +75,18 @@ PairNNP::~PairNNP() {
     for (i = 0; i < nG1params; i++) delete[] G1params[i];
   delete[] G1params;
   if (G2params)
-    for (i = 0; i < nG1params; i++) delete[] G2params[i];
+    for (i = 0; i < nG2params; i++) delete[] G2params[i];
   delete[] G2params;
   if (G4params)
-    for (i = 0; i < nG1params; i++) delete[] G4params[i];
+    for (i = 0; i < nG4params; i++) delete[] G4params[i];
   delete[] G4params;
+  delete[] preprocesses;
   delete[] pca_transform;
   delete[] pca_mean;
+  delete[] scl_max;
+  delete[] scl_min;
+  delete[] std_mean;
+  delete[] std_std;
 
   if (masters)
     for (i = 0; i < nelements; i++) {
@@ -352,11 +357,10 @@ void PairNNP::get_next_line(ifstream &fin, stringstream &ss, int &nwords) {
 void PairNNP::read_file(char *file) {
   ifstream fin;
   stringstream ss;
-  string preprocess, element, activation;
+  string sym_func_type, preprocess, element, activation;
   int i, j, k, l, nwords;
-  int nRc, neta, nRs, nlambda, nzeta;
-  int depth, depthnum, insize, outsize;
-  double *Rc, *eta, *Rs, *lambda, *zeta;
+  int ntype, depth, depthnum, insize, outsize, size;
+  double Rc, eta, Rs, lambda, zeta;
   double *pca_transform_raw, *pca_mean_raw;
   double *scl_max_raw, *scl_min_raw;
   double *std_mean_raw, *std_std_raw;
@@ -375,57 +379,42 @@ void PairNNP::read_file(char *file) {
   get_next_line(fin, ss, nwords);
 
   // symmetry function parameters
-  get_next_line(fin, ss, nRc);
-  Rc = new double[nRc];
-  for (i = 0; ss >> Rc[i]; i++)
-    ;
+  nG1params = 0;
+  nG2params = 0;
+  nG4params = 0;
+  get_next_line(fin, ss, nwords);
+  ss >> ntype;
 
-  get_next_line(fin, ss, neta);
-  eta = new double[neta];
-  for (i = 0; ss >> eta[i]; i++)
-    ;
-
-  get_next_line(fin, ss, nRs);
-  Rs = new double[nRs];
-  for (i = 0; ss >> Rs[i]; i++)
-    ;
-
-  get_next_line(fin, ss, nlambda);
-  lambda = new double[nlambda];
-  for (i = 0; ss >> lambda[i]; i++)
-    ;
-
-  get_next_line(fin, ss, nzeta);
-  zeta = new double[nzeta];
-  for (i = 0; ss >> zeta[i]; i++)
-    ;
-
-  nG1params = nRc;
-  nG2params = nRc * neta * nRs;
-  nG4params = nRc * neta * nlambda * nzeta;
-  nfeature = ntwobody * (nG1params + nG2params) + nthreebody * nG4params;
-  G1params = new double *[nG1params];
-  G2params = new double *[nG2params];
-  G4params = new double *[nG4params];
-  for (i = 0; i < nRc; i++) {
-    G1params[i] = new double[1]{Rc[i]};
-    for (j = 0; j < neta; j++) {
-      for (k = 0; k < nRs; k++)
-        G2params[(i * neta + j) * nRs + k] =
-            new double[3]{Rc[i], eta[j], Rs[k]};
-      for (k = 0; k < nlambda; k++) {
-        for (l = 0; l < nzeta; l++) {
-          G4params[((i * neta + j) * nlambda + k) * nzeta + l] =
-              new double[4]{Rc[i], eta[j], lambda[k], zeta[l]};
-        }
+  for (i = 0; i < ntype; i++) {
+    get_next_line(fin, ss, nwords);
+    ss >> sym_func_type >> size;
+    if (sym_func_type == "type1") {
+      nG1params = size;
+      G1params = new double *[nG1params];
+      for (j = 0; j < nG1params; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> Rc;
+        G1params[j] = new double[1]{Rc};
+      }
+    } else if (sym_func_type == "type2") {
+      nG2params = size;
+      G2params = new double *[nG2params];
+      for (j = 0; j < nG2params; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> Rc >> eta >> Rs;
+        G2params[j] = new double[3]{Rc, eta, Rs};
+      }
+    } else if (sym_func_type == "type4") {
+      nG4params = size;
+      G4params = new double *[nG4params];
+      for (j = 0; j < nG4params; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> Rc >> eta >> lambda >> zeta;
+        G4params[j] = new double[4]{Rc, eta, lambda, zeta};
       }
     }
   }
-  delete[] Rc;
-  delete[] eta;
-  delete[] Rs;
-  delete[] lambda;
-  delete[] zeta;
+  nfeature = ntwobody * (nG1params + nG2params) + nthreebody * nG4params;
 
   // preprocess parameters
   get_next_line(fin, ss, nwords);

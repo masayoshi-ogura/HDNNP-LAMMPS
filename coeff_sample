@@ -2,11 +2,19 @@
 GaN neural network potential trained by HDNNP
 
 # symmetry function parameters
+3                   // number of using function types
+
+type1 1             // function type, size
 5.0                 // Rc
-0.0 0.01 0.1 1.0    // eta
-2.0 3.2 3.8         // Rs
--1.0 1.0            // lambda
-1.0 2.0 4.0         // zeta
+
+type2 3
+5.0 0.01 2.0        // Rc eta Rs
+5.0 0.01 3.2
+5.0 0.01 3.8
+
+type4 2
+5.0 0.001 1.0 1.0   // Rc eta lambda zeta
+5.0 0.001 -1.0 1.0
 
 # preprocess parameters
 2                   // number of preprocess
