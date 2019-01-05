@@ -5,11 +5,12 @@
 #include "symmetry_function.h"
 
 void G1(double *params, int iparam, int *iG2s, int numneigh, VectorXd &R,
-        VectorXd &tanh, VectorXd *dR, double *G, double ***dG_dr) {
+        VectorXd *dR, double *G, double ***dG_dr) {
   int j, iG;
-  VectorXd coeff, g, dg[3];
+  VectorXd tanh, coeff, g, dg[3];
   double Rc = params[0];
 
+  tanh = (1.0 - R.array() / Rc).tanh();
   g = tanh.array().cube();
   coeff = -3.0 / Rc * (1.0 - tanh.array().square()) * tanh.array().square();
   dg[0] = coeff.array() * dR[0].array();
@@ -27,13 +28,13 @@ void G1(double *params, int iparam, int *iG2s, int numneigh, VectorXd &R,
 }
 
 void G2(double *params, int iparam, int *iG2s, int numneigh, VectorXd &R,
-        VectorXd &tanh, VectorXd *dR, double *G, double ***dG_dr) {
+        VectorXd *dR, double *G, double ***dG_dr) {
   int j, iG;
-  VectorXd coeff, g, dg[3];
+  VectorXd tanh, coeff, g, dg[3];
   double Rc = params[0];
   double eta = params[1];
   double Rs = params[2];
-
+  tanh = (1.0 - R.array() / Rc).tanh();
   g = (-eta * (R.array() - Rs).square()).exp() * tanh.array().cube();
   coeff = (-eta * (R.array() - Rs).square()).exp() * tanh.array().square() *
           (-2.0 * eta * (R.array() - Rs) * tanh.array() +
@@ -53,17 +54,18 @@ void G2(double *params, int iparam, int *iG2s, int numneigh, VectorXd &R,
 }
 
 void G4(double *params, int iparam, int **iG3s, int numneigh, VectorXd &R,
-        VectorXd &tanh, MatrixXd &cos, VectorXd *dR, MatrixXd *dcos, double *G,
+        MatrixXd &cos, VectorXd *dR, MatrixXd *dcos, double *G,
         double ***dG_dr) {
   int j, k, iG;
   double coeffs;
-  VectorXd rad1, rad2;
+  VectorXd tanh, rad1, rad2;
   MatrixXd ang, g, coeff1, coeff2, dg[3];
   double Rc = params[0];
   double eta = params[1];
   double lambda = params[2];
   double zeta = params[3];
 
+  tanh = (1.0 - R.array() / Rc).tanh();
   coeffs = pow(2.0, 1 - zeta);
   ang = 1.0 + lambda * cos.array();
   rad1 = (-eta * R.array().square()).exp() * tanh.array().cube();

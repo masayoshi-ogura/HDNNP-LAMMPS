@@ -52,8 +52,8 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
   masters = NULL;
   nG1params = nG2params = nG4params = 0;
   G1params = G2params = G4params = NULL;
-  components = NULL;
-  mean = NULL;
+  pca_transform = NULL;
+  pca_mean = NULL;
   map = NULL;
 }
 
@@ -75,13 +75,18 @@ PairNNP::~PairNNP() {
     for (i = 0; i < nG1params; i++) delete[] G1params[i];
   delete[] G1params;
   if (G2params)
-    for (i = 0; i < nG1params; i++) delete[] G2params[i];
+    for (i = 0; i < nG2params; i++) delete[] G2params[i];
   delete[] G2params;
   if (G4params)
-    for (i = 0; i < nG1params; i++) delete[] G4params[i];
+    for (i = 0; i < nG4params; i++) delete[] G4params[i];
   delete[] G4params;
-  delete[] components;
-  delete[] mean;
+  delete[] preprocesses;
+  delete[] pca_transform;
+  delete[] pca_mean;
+  delete[] scl_max;
+  delete[] scl_min;
+  delete[] std_mean;
+  delete[] std_std;
 
   if (masters)
     for (i = 0; i < nelements; i++) {
@@ -100,12 +105,12 @@ PairNNP::~PairNNP() {
 /* ---------------------------------------------------------------------- */
 
 void PairNNP::compute(int eflag, int vflag) {
-  int i, j, k, ii, jj, inum, jnum;
+  int i, j, k, ii, jj, inum, jnum, p;
   int itype, jtype, iparam;
   double delx, dely, delz, evdwl, fx, fy, fz, fpair;
   int *ilist, *jlist, *numneigh, **firstneigh;
   int *iG2s, **iG3s;
-  VectorXd R, tanh, dR[3];
+  VectorXd R, dR[3];
   MatrixXd cos, dcos[3];
   VectorXd G, dE_dG, F[3];
   double *G_raw, ***dG_dr_raw;
@@ -134,7 +139,7 @@ void PairNNP::compute(int eflag, int vflag) {
     jlist = firstneigh[i];  // indices of J neighbors of I atom
     jnum = numneigh[i];     // # of J neighbors of I atom
 
-    geometry(i, jlist, jnum, R, tanh, cos, dR, dcos);
+    geometry(i, jlist, jnum, R, cos, dR, dcos);
 
     memory->create(G_raw, nfeature, "G");
     memory->create(dG_dr_raw, 3, jnum, nfeature, "dG_dr");
@@ -148,15 +153,15 @@ void PairNNP::compute(int eflag, int vflag) {
     for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
     feature_index(jlist, jnum, iG2s, iG3s);
     for (iparam = 0; iparam < nG1params; iparam++)
-      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, tanh, dR, G_raw,
+      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, dR, G_raw,
          dG_dr_raw);
     for (iparam = 0; iparam < nG2params; iparam++)
-      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R, tanh,
+      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R,
          dR, G_raw, dG_dr_raw);
     for (iparam = 0; iparam < nG4params; iparam++)
       G4(G4params[iparam],
          ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s, jnum,
-         R, tanh, cos, dR, dcos, G_raw, dG_dr_raw);
+         R, cos, dR, dcos, G_raw, dG_dr_raw);
     delete[] iG2s;
     for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
     delete[] iG3s;
@@ -169,7 +174,9 @@ void PairNNP::compute(int eflag, int vflag) {
     dG_dz = Map<MatrixXd>(&dG_dr_raw[2][0][0], nfeature, jnum);
     memory->destroy(dG_dr_raw);
 
-    if (preproc_flag) (this->*preproc_func)(itype, G, dG_dx, dG_dy, dG_dz);
+    for (p = 0; p < npreprocess; p++) {
+      (this->*preprocesses[p])(itype, G, dG_dx, dG_dy, dG_dz);
+    }
 
     masters[itype]->feedforward(G, dE_dG, eflag, evdwl);
 
@@ -294,9 +301,17 @@ void PairNNP::coeff(int narg, char **arg) {
   read_file(arg[2]);
   setup_params();
 
-  for (int i = 1; i < ntypes + 1; i++) {
-    for (int j = 1; j < ntypes + 1; j++) {
-      cutsq[i][j] = G1params[nG1params - 1][0] * G1params[nG1params - 1][0];
+  cutmax = 0.0;
+  for (i = 0; i < nG1params; i++)
+    if (G1params[i][0] > cutmax) cutmax = G1params[i][0];
+  for (i = 0; i < nG2params; i++)
+    if (G2params[i][0] > cutmax) cutmax = G2params[i][0];
+  for (i = 0; i < nG4params; i++)
+    if (G4params[i][0] > cutmax) cutmax = G4params[i][0];
+
+  for (i = 1; i < ntypes + 1; i++) {
+    for (j = 1; j < ntypes + 1; j++) {
+      cutsq[i][j] = cutmax * cutmax;
       setflag[i][j] = 1;
     }
   }
@@ -321,7 +336,12 @@ void PairNNP::init_style() {
    init for one type pair i,j and corresponding j,i
 ------------------------------------------------------------------------- */
 
-double PairNNP::init_one(int i, int j) { return G1params[nG1params - 1][0]; }
+double PairNNP::init_one(int i, int j)
+{
+  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+
+  return cutmax;
+}
 
 /* ---------------------------------------------------------------------- */
 
@@ -350,12 +370,13 @@ void PairNNP::get_next_line(ifstream &fin, stringstream &ss, int &nwords) {
 void PairNNP::read_file(char *file) {
   ifstream fin;
   stringstream ss;
-  string preproc, element, activation;
+  string sym_func_type, preprocess, element, activation;
   int i, j, k, l, nwords;
-  int nRc, neta, nRs, nlambda, nzeta;
-  int depth, depthnum, insize, outsize;
-  double *Rc, *eta, *Rs, *lambda, *zeta;
-  double *components_raw, *mean_raw;
+  int ntype, depth, depthnum, insize, outsize, size;
+  double Rc, eta, Rs, lambda, zeta;
+  double *pca_transform_raw, *pca_mean_raw;
+  double *scl_max_raw, *scl_min_raw;
+  double *std_mean_raw, *std_std_raw;
   double *weight, *bias;
 
   if (comm->me == 0) {
@@ -367,98 +388,138 @@ void PairNNP::read_file(char *file) {
     }
   }
 
-  // title
-  get_next_line(fin, ss, nwords);
-
   // symmetry function parameters
-  get_next_line(fin, ss, nRc);
-  Rc = new double[nRc];
-  for (i = 0; ss >> Rc[i]; i++)
-    ;
+  nG1params = 0;
+  nG2params = 0;
+  nG4params = 0;
+  get_next_line(fin, ss, nwords);
+  ss >> ntype;
 
-  get_next_line(fin, ss, neta);
-  eta = new double[neta];
-  for (i = 0; ss >> eta[i]; i++)
-    ;
-
-  get_next_line(fin, ss, nRs);
-  Rs = new double[nRs];
-  for (i = 0; ss >> Rs[i]; i++)
-    ;
-
-  get_next_line(fin, ss, nlambda);
-  lambda = new double[nlambda];
-  for (i = 0; ss >> lambda[i]; i++)
-    ;
-
-  get_next_line(fin, ss, nzeta);
-  zeta = new double[nzeta];
-  for (i = 0; ss >> zeta[i]; i++)
-    ;
-
-  nG1params = nRc;
-  nG2params = nRc * neta * nRs;
-  nG4params = nRc * neta * nlambda * nzeta;
-  nfeature = ntwobody * (nG1params + nG2params) + nthreebody * nG4params;
-  G1params = new double *[nG1params];
-  G2params = new double *[nG2params];
-  G4params = new double *[nG4params];
-  for (i = 0; i < nRc; i++) {
-    G1params[i] = new double[1]{Rc[i]};
-    for (j = 0; j < neta; j++) {
-      for (k = 0; k < nRs; k++)
-        G2params[(i * neta + j) * nRs + k] =
-            new double[3]{Rc[i], eta[j], Rs[k]};
-      for (k = 0; k < nlambda; k++) {
-        for (l = 0; l < nzeta; l++) {
-          G4params[((i * neta + j) * nlambda + k) * nzeta + l] =
-              new double[4]{Rc[i], eta[j], lambda[k], zeta[l]};
-        }
+  for (i = 0; i < ntype; i++) {
+    get_next_line(fin, ss, nwords);
+    ss >> sym_func_type >> size;
+    if (sym_func_type == "type1") {
+      nG1params = size;
+      G1params = new double *[nG1params];
+      for (j = 0; j < nG1params; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> Rc;
+        G1params[j] = new double[1]{Rc};
+      }
+    } else if (sym_func_type == "type2") {
+      nG2params = size;
+      G2params = new double *[nG2params];
+      for (j = 0; j < nG2params; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> Rc >> eta >> Rs;
+        G2params[j] = new double[3]{Rc, eta, Rs};
+      }
+    } else if (sym_func_type == "type4") {
+      nG4params = size;
+      G4params = new double *[nG4params];
+      for (j = 0; j < nG4params; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> Rc >> eta >> lambda >> zeta;
+        G4params[j] = new double[4]{Rc, eta, lambda, zeta};
       }
     }
   }
-  delete[] Rc;
-  delete[] eta;
-  delete[] Rs;
-  delete[] lambda;
-  delete[] zeta;
+  nfeature = ntwobody * (nG1params + nG2params) + nthreebody * nG4params;
 
   // preprocess parameters
   get_next_line(fin, ss, nwords);
-  ss >> preproc_flag;
+  ss >> npreprocess;
+  preprocesses = new FuncPtr[npreprocess];
 
-  if (preproc_flag) {
+  for (i = 0; i < npreprocess; i++) {
     get_next_line(fin, ss, nwords);
-    ss >> preproc;
+    ss >> preprocess;
 
-    if (preproc == "pca") {
-      preproc_func = &PairNNP::PCA;
-      components = new MatrixXd[nelements];
-      mean = new VectorXd[nelements];
-      for (i = 0; i < nelements; i++) {
+    if (preprocess == "pca") {
+      preprocesses[i] = &PairNNP::pca;
+      pca_transform = new MatrixXd[nelements];
+      pca_mean = new VectorXd[nelements];
+      for (j = 0; j < nelements; j++) {
         get_next_line(fin, ss, nwords);
         ss >> element >> outsize >> insize;
-        components_raw = new double[insize * outsize];
-        mean_raw = new double[insize];
+        pca_transform_raw = new double[insize * outsize];
+        pca_mean_raw = new double[insize];
 
-        for (j = 0; j < outsize; j++) {
+        for (k = 0; k < outsize; k++) {
           get_next_line(fin, ss, nwords);
-          for (k = 0; ss >> components_raw[j * insize + k]; k++)
+          for (l = 0; ss >> pca_transform_raw[k * insize + l]; l++)
             ;
         }
 
         get_next_line(fin, ss, nwords);
-        for (j = 0; ss >> mean_raw[j]; j++)
+        for (k = 0; ss >> pca_mean_raw[k]; k++)
           ;
 
-        for (j = 0; j < nelements; j++)
-          if (elements[j] == element) {
-            components[j] =
-                Map<MatrixXd>(components_raw, insize, outsize).transpose();
-            mean[j] = Map<VectorXd>(mean_raw, insize);
+        for (k = 0; k < nelements; k++)
+          if (elements[k] == element) {
+            pca_transform[k] =
+                Map<MatrixXd>(pca_transform_raw, insize, outsize).transpose();
+            pca_mean[k] = Map<VectorXd>(pca_mean_raw, insize);
           }
-        delete[] components_raw;
-        delete[] mean_raw;
+        delete[] pca_transform_raw;
+        delete[] pca_mean_raw;
+      }
+    } else if (preprocess == "scaling") {
+      preprocesses[i] = &PairNNP::scaling;
+      scl_max = new VectorXd[nelements];
+      scl_min = new VectorXd[nelements];
+
+      get_next_line(fin, ss, nwords);
+      ss >> scl_target_max >> scl_target_min;
+
+      for (j = 0; j < nelements; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> element >> size;
+        scl_max_raw = new double[size];
+        scl_min_raw = new double[size];
+
+        get_next_line(fin, ss, nwords);
+        for (k = 0; ss >> scl_max_raw[k]; k++)
+          ;
+
+        get_next_line(fin, ss, nwords);
+        for (k = 0; ss >> scl_min_raw[k]; k++)
+          ;
+
+        for (k = 0; k < nelements; k++)
+          if (elements[k] == element) {
+            scl_max[k] = Map<VectorXd>(scl_max_raw, size);
+            scl_min[k] = Map<VectorXd>(scl_min_raw, size);
+          }
+        delete[] scl_max_raw;
+        delete[] scl_min_raw;
+      }
+    } else if (preprocess == "standardization") {
+      preprocesses[i] = &PairNNP::standardization;
+      std_mean = new VectorXd[nelements];
+      std_std = new VectorXd[nelements];
+
+      for (j = 0; j < nelements; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> element >> size;
+        std_mean_raw = new double[size];
+        std_std_raw = new double[size];
+
+        get_next_line(fin, ss, nwords);
+        for (k = 0; ss >> std_mean_raw[k]; k++)
+          ;
+
+        get_next_line(fin, ss, nwords);
+        for (k = 0; ss >> std_std_raw[k]; k++)
+          ;
+
+        for (k = 0; k < nelements; k++)
+          if (elements[k] == element) {
+            std_mean[k] = Map<VectorXd>(std_mean_raw, size);
+            std_std[k] = Map<VectorXd>(std_std_raw, size);
+          }
+        delete[] std_mean_raw;
+        delete[] std_std_raw;
       }
     }
   }
@@ -471,7 +532,6 @@ void PairNNP::read_file(char *file) {
   for (i = 0; i < nelements * depth; i++) {
     get_next_line(fin, ss, nwords);
     ss >> element >> depthnum >> insize >> outsize >> activation;
-    depthnum--;
     weight = new double[insize * outsize];
     bias = new double[outsize];
 
@@ -503,12 +563,7 @@ void PairNNP::setup_params() {}
 /* ---------------------------------------------------------------------- */
 
 void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
-                       VectorXd &tanh, MatrixXd &cos, VectorXd *dR,
-                       MatrixXd *dcos) {
-  // TODO
-  // この関数内でR＞Rcとなるペアを排除
-  // jlistとjnumを参照で受け取り、上書きするようなコードにする
-  // もしくは、元の配列が壊れるといけないので新しい配列と数値を作成して返す
+                       MatrixXd &cos, VectorXd *dR, MatrixXd *dcos) {
   int i, n;
   double **x = atom->x;
   MatrixXd r, dR_;
@@ -524,8 +579,6 @@ void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
 
   r = Map<MatrixXd>(&r_[0][0], 3, numneigh);
   R = r.colwise().norm();
-  for (i = 0; i < nG1params; i++)
-    tanh = (1.0 - R.array() / G1params[i][0]).tanh();
   dR_ = r.array().rowwise() / R.transpose().array();
   cos.noalias() = dR_.transpose() * dR_;
   for (i = 0; i < 3; i++) {
@@ -552,10 +605,30 @@ void PairNNP::feature_index(int *neighlist, int numneigh, int *iG2s,
   }
 }
 
-void PairNNP::PCA(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
+void PairNNP::pca(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
                   MatrixXd &dG_dz) {
-  G = components[type] * (G - mean[type]);
-  dG_dx = components[type] * dG_dx;
-  dG_dy = components[type] * dG_dy;
-  dG_dz = components[type] * dG_dz;
+  G = pca_transform[type] * (G - pca_mean[type]);
+  dG_dx = pca_transform[type] * dG_dx;
+  dG_dy = pca_transform[type] * dG_dy;
+  dG_dz = pca_transform[type] * dG_dz;
+}
+
+void PairNNP::scaling(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
+                      MatrixXd &dG_dz) {
+  G = ((G - scl_min[type]).array() * (scl_max[type] - scl_min[type]).array().inverse() *
+          (scl_target_max - scl_target_min)).array() + scl_target_min;
+  dG_dx = dG_dx.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+          (scl_target_max - scl_target_min);
+  dG_dy = dG_dy.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+          (scl_target_max - scl_target_min);
+  dG_dz = dG_dz.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+          (scl_target_max - scl_target_min);
+}
+
+void PairNNP::standardization(int type, VectorXd &G, MatrixXd &dG_dx,
+                              MatrixXd &dG_dy, MatrixXd &dG_dz) {
+  G = (G - std_mean[type]).array() * std_std[type].array().inverse();
+  dG_dx = dG_dx.array().colwise() * std_std[type].array().inverse();
+  dG_dy = dG_dy.array().colwise() * std_std[type].array().inverse();
+  dG_dz = dG_dz.array().colwise() * std_std[type].array().inverse();
 }
