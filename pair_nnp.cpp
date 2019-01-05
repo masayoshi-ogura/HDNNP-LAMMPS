@@ -247,6 +247,7 @@ void PairNNP::settings(int narg, char **arg) {
 void PairNNP::coeff(int narg, char **arg) {
   int i, j, n, idx;
   int ntypes = atom->ntypes;
+  double max_cutoff = 0.0;
 
   if (!allocated) allocate();
 
@@ -301,9 +302,17 @@ void PairNNP::coeff(int narg, char **arg) {
   read_file(arg[2]);
   setup_params();
 
-  for (int i = 1; i < ntypes + 1; i++) {
-    for (int j = 1; j < ntypes + 1; j++) {
-      cutsq[i][j] = G1params[nG1params - 1][0] * G1params[nG1params - 1][0];
+  for (i = 0; i < nG1params; i++)
+    if (G1params[i][0] > max_cutoff) max_cutoff = G1params[i][0];
+  for (i = 0; i < nG2params; i++)
+    if (G2params[i][0] > max_cutoff) max_cutoff = G2params[i][0];
+  for (i = 0; i < nG4params; i++)
+    if (G4params[i][0] > max_cutoff) max_cutoff = G4params[i][0];
+
+  for (i = 1; i < ntypes + 1; i++) {
+    for (j = 1; j < ntypes + 1; j++) {
+      for
+        cutsq[i][j] = max_cutoff * max_cutoff;
       setflag[i][j] = 1;
     }
   }
@@ -519,7 +528,6 @@ void PairNNP::read_file(char *file) {
   for (i = 0; i < nelements * depth; i++) {
     get_next_line(fin, ss, nwords);
     ss >> element >> depthnum >> insize >> outsize >> activation;
-    depthnum--;
     weight = new double[insize * outsize];
     bias = new double[outsize];
 

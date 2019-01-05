@@ -39,14 +39,14 @@ N 5                // element, size
 pca                 // 2nd preprocess name
 
 Ga 2 5              // element, out size, in size
-# components
+# transformation matrix
 0.0852851 0.307088 0.0851549 0.308185 0.0850465
 0.297891 0.0840766 0.289663 0.0835047 0.316399
 # mean
 0.479216 0.792801 0.472354 0.788308 0.478651
 
 N 2 5
-# components
+# transformation matrix
 0.1 0.2 0.3 0.4 0.5
 -0.1 -0.2 -0.3 -0.4 -0.5
 # mean
@@ -55,14 +55,14 @@ N 2 5
 # neural network parameters
 3                   // depth of neural network
 
-Ga 1 2 3 tanh       // element, depth, in size, out size, activation
+Ga 0 2 3 tanh       // element, depth, in size, out size, activation
 # weight
 0.6453437826308873 0.742684458937021 0.5176822649237571
 0.7434313793523288 0.3565197010122435 0.7354816264482255
 # bias
 0.9589526405394695 0.9844318547022946 0.30885885617505016
 
-Ga 2 3 3 tanh
+Ga 1 3 3 tanh
 # weight
 0.5419000490472067 0.3086979190990048 0.8973850664509684
 0.3645089318972786 0.5765757558750704 0.26099590866599465
@@ -70,7 +70,7 @@ Ga 2 3 3 tanh
 # bias
 0.15549820061757103 0.9844928205912395 0.6709257421055443
 
-Ga 3 3 1 identity
+Ga 2 3 1 identity
 # weight
 0.5243149712074373
 0.4642807229055258
@@ -78,14 +78,14 @@ Ga 3 3 1 identity
 # bias
 0.6310470973403294
 
-N 1 2 3 tanh
+N 0 2 3 tanh
 # weight
 -0.3 -0.2 -0.1
 0 0.1 0.2
 # bias
 -1 0 1
 
-N 2 3 3 tanh
+N 1 3 3 tanh
 # weight
 -0.4 -0.3 -0.2
 -0.1 0 0.1
@@ -93,7 +93,7 @@ N 2 3 3 tanh
 # bias
 -2 0 2
 
-N 3 3 1 identity
+N 2 3 1 identity
 # weight
 -0.2
 0
