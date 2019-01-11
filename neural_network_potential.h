@@ -36,7 +36,7 @@ class Layer {
   MatrixXd weight;
   VectorXd bias;
 
-  Layer(int, int, double *, double *, string);
+  Layer(int, int, vector<double> &, vector<double> &, string);
 
   ~Layer();
 

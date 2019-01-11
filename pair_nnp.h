@@ -55,14 +55,14 @@ class PairNNP : public Pair {
   vector<vector<double> > G1params, G2params, G4params;
   int nfeature;
   int npreprocess;
-  MatrixXd *pca_transform;
-  VectorXd *pca_mean;
-  VectorXd *scl_max;
-  VectorXd *scl_min;
+  vector<MatrixXd> pca_transform;
+  vector<VectorXd> pca_mean;
+  vector<VectorXd> scl_max;
+  vector<VectorXd> scl_min;
   double scl_target_max;
   double scl_target_min;
-  VectorXd *std_mean;
-  VectorXd *std_std;
+  vector<VectorXd> std_mean;
+  vector<VectorXd> std_std;
 
   virtual void allocate();
 

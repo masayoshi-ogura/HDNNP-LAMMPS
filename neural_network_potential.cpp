@@ -1,6 +1,6 @@
 #include "neural_network_potential.h"
 
-Layer::Layer(int in, int out, double *w, double *b, string act) {
+Layer::Layer(int in, int out, vector<double> &w, vector<double> &b, string act) {
   weight = Map<MatrixXd>(&w[0], out, in);
   bias = Map<VectorXd>(&b[0], out);
   set_activation(act);

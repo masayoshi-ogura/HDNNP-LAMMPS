@@ -50,8 +50,6 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
   nelements = 0;
   combinations = NULL;
   nG1params = nG2params = nG4params = 0;
-  pca_transform = NULL;
-  pca_mean = NULL;
   map = NULL;
 }
 
@@ -67,12 +65,6 @@ PairNNP::~PairNNP() {
     for (i = 0; i < atom->ntypes; i++) delete[] combinations[i];
   delete[] combinations;
   delete[] preprocesses;
-  delete[] pca_transform;
-  delete[] pca_mean;
-  delete[] scl_max;
-  delete[] scl_min;
-  delete[] std_mean;
-  delete[] std_std;
 
   if (allocated) {
     memory->destroy(cutsq);
@@ -340,10 +332,10 @@ void PairNNP::read_file(char *file) {
   int i, j, k, l, nwords;
   int ntype, depth, depthnum, insize, outsize, size;
   double Rc, eta, Rs, lambda, zeta;
-  double *pca_transform_raw, *pca_mean_raw;
-  double *scl_max_raw, *scl_min_raw;
-  double *std_mean_raw, *std_std_raw;
-  double *weight, *bias;
+  vector<double> pca_transform_raw, pca_mean_raw;
+  vector<double> scl_max_raw, scl_min_raw;
+  vector<double> std_mean_raw, std_std_raw;
+  vector<double> weight, bias;
 
   if (comm->me == 0) {
     fin.open(file);
@@ -408,13 +400,13 @@ void PairNNP::read_file(char *file) {
 
     if (preprocess == "pca") {
       preprocesses[i] = &PairNNP::pca;
-      pca_transform = new MatrixXd[nelements];
-      pca_mean = new VectorXd[nelements];
+      pca_transform = vector<MatrixXd>(nelements);
+      pca_mean = vector<VectorXd>(nelements);
       for (j = 0; j < nelements; j++) {
         get_next_line(fin, ss, nwords);
         ss >> element >> outsize >> insize;
-        pca_transform_raw = new double[insize * outsize];
-        pca_mean_raw = new double[insize];
+        pca_transform_raw = vector<double>(insize * outsize);
+        pca_mean_raw = vector<double>(insize);
 
         for (k = 0; k < outsize; k++) {
           get_next_line(fin, ss, nwords);
@@ -429,16 +421,14 @@ void PairNNP::read_file(char *file) {
         for (k = 0; k < nelements; k++)
           if (elements[k] == element) {
             pca_transform[k] =
-                Map<MatrixXd>(pca_transform_raw, insize, outsize).transpose();
-            pca_mean[k] = Map<VectorXd>(pca_mean_raw, insize);
+                Map<MatrixXd>(&pca_transform_raw[0], insize, outsize).transpose();
+            pca_mean[k] = Map<VectorXd>(&pca_mean_raw[0], insize);
           }
-        delete[] pca_transform_raw;
-        delete[] pca_mean_raw;
       }
     } else if (preprocess == "scaling") {
       preprocesses[i] = &PairNNP::scaling;
-      scl_max = new VectorXd[nelements];
-      scl_min = new VectorXd[nelements];
+      scl_max = vector<VectorXd>(nelements);
+      scl_min = vector<VectorXd>(nelements);
 
       get_next_line(fin, ss, nwords);
       ss >> scl_target_max >> scl_target_min;
@@ -446,8 +436,8 @@ void PairNNP::read_file(char *file) {
       for (j = 0; j < nelements; j++) {
         get_next_line(fin, ss, nwords);
         ss >> element >> size;
-        scl_max_raw = new double[size];
-        scl_min_raw = new double[size];
+        scl_max_raw = vector<double>(size);
+        scl_min_raw = vector<double>(size);
 
         get_next_line(fin, ss, nwords);
         for (k = 0; ss >> scl_max_raw[k]; k++)
@@ -459,22 +449,20 @@ void PairNNP::read_file(char *file) {
 
         for (k = 0; k < nelements; k++)
           if (elements[k] == element) {
-            scl_max[k] = Map<VectorXd>(scl_max_raw, size);
-            scl_min[k] = Map<VectorXd>(scl_min_raw, size);
+            scl_max[k] = Map<VectorXd>(&scl_max_raw[0], size);
+            scl_min[k] = Map<VectorXd>(&scl_min_raw[0], size);
           }
-        delete[] scl_max_raw;
-        delete[] scl_min_raw;
       }
     } else if (preprocess == "standardization") {
       preprocesses[i] = &PairNNP::standardization;
-      std_mean = new VectorXd[nelements];
-      std_std = new VectorXd[nelements];
+      std_mean = vector<VectorXd>(nelements);
+      std_std = vector<VectorXd>(nelements);
 
       for (j = 0; j < nelements; j++) {
         get_next_line(fin, ss, nwords);
         ss >> element >> size;
-        std_mean_raw = new double[size];
-        std_std_raw = new double[size];
+        std_mean_raw = vector<double>(size);
+        std_std_raw = vector<double>(size);
 
         get_next_line(fin, ss, nwords);
         for (k = 0; ss >> std_mean_raw[k]; k++)
@@ -486,11 +474,9 @@ void PairNNP::read_file(char *file) {
 
         for (k = 0; k < nelements; k++)
           if (elements[k] == element) {
-            std_mean[k] = Map<VectorXd>(std_mean_raw, size);
-            std_std[k] = Map<VectorXd>(std_std_raw, size);
+            std_mean[k] = Map<VectorXd>(&std_mean_raw[0], size);
+            std_std[k] = Map<VectorXd>(&std_std_raw[0], size);
           }
-        delete[] std_mean_raw;
-        delete[] std_std_raw;
       }
     }
   }
@@ -503,8 +489,8 @@ void PairNNP::read_file(char *file) {
   for (i = 0; i < nelements * depth; i++) {
     get_next_line(fin, ss, nwords);
     ss >> element >> depthnum >> insize >> outsize >> activation;
-    weight = new double[insize * outsize];
-    bias = new double[outsize];
+    weight = vector<double>(insize * outsize);
+    bias = vector<double>(outsize);
 
     for (j = 0; j < insize; j++) {
       get_next_line(fin, ss, nwords);
@@ -519,9 +505,6 @@ void PairNNP::read_file(char *file) {
     for (j = 0; j < nelements; j++)
       if (elements[j] == element)
         masters[j].layers.push_back(Layer(insize, outsize, weight, bias, activation));
-
-    delete[] weight;
-    delete[] bias;
   }
   if (comm->me == 0) fin.close();
 }
