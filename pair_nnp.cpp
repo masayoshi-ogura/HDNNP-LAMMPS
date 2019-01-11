@@ -52,7 +52,6 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
   elements = NULL;
   masters = NULL;
   nG1params = nG2params = nG4params = 0;
-  G1params = G2params = G4params = NULL;
   pca_transform = NULL;
   pca_mean = NULL;
   map = NULL;
@@ -72,15 +71,6 @@ PairNNP::~PairNNP() {
   if (elements)
     for (i = 0; i < nelements; i++) delete[] elements[i];
   delete[] elements;
-  if (G1params)
-    for (i = 0; i < nG1params; i++) delete[] G1params[i];
-  delete[] G1params;
-  if (G2params)
-    for (i = 0; i < nG2params; i++) delete[] G2params[i];
-  delete[] G2params;
-  if (G4params)
-    for (i = 0; i < nG4params; i++) delete[] G4params[i];
-  delete[] G4params;
   delete[] preprocesses;
   delete[] pca_transform;
   delete[] pca_mean;
@@ -396,27 +386,32 @@ void PairNNP::read_file(char *file) {
     ss >> sym_func_type >> size;
     if (sym_func_type == "type1") {
       nG1params = size;
-      G1params = new double *[nG1params];
+      G1params = vector<vector<double> >(nG1params);
       for (j = 0; j < nG1params; j++) {
         get_next_line(fin, ss, nwords);
         ss >> Rc;
-        G1params[j] = new double[1]{Rc};
+        G1params[j].push_back(Rc);
       }
     } else if (sym_func_type == "type2") {
       nG2params = size;
-      G2params = new double *[nG2params];
+      G2params = vector<vector<double> >(nG2params);
       for (j = 0; j < nG2params; j++) {
         get_next_line(fin, ss, nwords);
         ss >> Rc >> eta >> Rs;
-        G2params[j] = new double[3]{Rc, eta, Rs};
+        G2params[j].push_back(Rc);
+        G2params[j].push_back(eta);
+        G2params[j].push_back(Rs);
       }
     } else if (sym_func_type == "type4") {
       nG4params = size;
-      G4params = new double *[nG4params];
+      G4params = vector<vector<double> >(nG4params);
       for (j = 0; j < nG4params; j++) {
         get_next_line(fin, ss, nwords);
         ss >> Rc >> eta >> lambda >> zeta;
-        G4params[j] = new double[4]{Rc, eta, lambda, zeta};
+        G4params[j].push_back(Rc);
+        G4params[j].push_back(eta);
+        G4params[j].push_back(lambda);
+        G4params[j].push_back(zeta);
       }
     }
   }

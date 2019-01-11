@@ -4,7 +4,7 @@
 
 #include "symmetry_function.h"
 
-void G1(double *params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
+void G1(vector<double> params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
         VectorXd *dR, double *G, double ***dG_dr) {
   int j, iG;
   VectorXd tanh, coeff, g, dg[3];
@@ -27,7 +27,7 @@ void G1(double *params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
   }
 }
 
-void G2(double *params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
+void G2(vector<double> params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
         VectorXd *dR, double *G, double ***dG_dr) {
   int j, iG;
   VectorXd tanh, coeff, g, dg[3];
@@ -53,7 +53,7 @@ void G2(double *params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
   }
 }
 
-void G4(double *params, int iparam, vector<vector<int> > iG3s, int numneigh,
+void G4(vector<double> params, int iparam, vector<vector<int> > iG3s, int numneigh,
         VectorXd &R, MatrixXd &cos, VectorXd *dR, MatrixXd *dcos, double *G,
         double ***dG_dr) {
   int j, k, iG;
