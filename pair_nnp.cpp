@@ -50,7 +50,6 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
   nelements = 0;
   combinations = NULL;
   elements = NULL;
-  masters = NULL;
   nG1params = nG2params = nG4params = 0;
   pca_transform = NULL;
   pca_mean = NULL;
@@ -78,13 +77,6 @@ PairNNP::~PairNNP() {
   delete[] scl_min;
   delete[] std_mean;
   delete[] std_std;
-
-  if (masters)
-    for (i = 0; i < nelements; i++) {
-      for (j = 0; j < masters[i]->depth; j++) delete masters[i]->layers[j];
-      delete masters[i];
-    }
-  delete[] masters;
 
   if (allocated) {
     memory->destroy(cutsq);
@@ -165,7 +157,7 @@ void PairNNP::compute(int eflag, int vflag) {
       (this->*preprocesses[p])(itype, G, dG_dx, dG_dy, dG_dz);
     }
 
-    masters[itype]->feedforward(G, dE_dG, eflag, evdwl);
+    masters[itype].feedforward(G, dE_dG, eflag, evdwl);
 
     F[0].noalias() = dE_dG.transpose() * dG_dx;
     F[1].noalias() = dE_dG.transpose() * dG_dy;
@@ -284,7 +276,6 @@ void PairNNP::coeff(int narg, char **arg) {
 
   // read potential file and initialize potential parameters
 
-  masters = new NNP *[nelements];
   read_file(arg[2]);
   setup_params();
 
@@ -518,7 +509,7 @@ void PairNNP::read_file(char *file) {
   // neural network parameters
   get_next_line(fin, ss, nwords);
   ss >> depth;
-  for (i = 0; i < nelements; i++) masters[i] = new NNP(depth);
+  for (i = 0; i < nelements; i++) masters.push_back(NNP(depth));
 
   for (i = 0; i < nelements * depth; i++) {
     get_next_line(fin, ss, nwords);
@@ -538,8 +529,7 @@ void PairNNP::read_file(char *file) {
 
     for (j = 0; j < nelements; j++)
       if (elements[j] == element)
-        masters[j]->layers[depthnum] =
-            new Layer(insize, outsize, weight, bias, activation);
+        masters[j].layers.push_back(Layer(insize, outsize, weight, bias, activation));
 
     delete[] weight;
     delete[] bias;

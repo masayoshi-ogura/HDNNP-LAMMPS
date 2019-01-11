@@ -59,21 +59,20 @@ void Layer::feedforward(VectorXd &input, VectorXd &deriv) {
 
 NNP::NNP(int n) {
   depth = n;
-  layers = new Layer *[depth];
 }
 
-NNP::~NNP() { delete[] layers; }
+NNP::~NNP() {}
 
 void NNP::feedforward(VectorXd input, VectorXd &dE_dG, int eflag,
                       double &evdwl) {
   int i;
   VectorXd deriv[depth];
 
-  for (i = 0; i < depth; i++) layers[i]->feedforward(input, deriv[i]);
+  for (i = 0; i < depth; i++) layers[i].feedforward(input, deriv[i]);
   dE_dG = VectorXd::Ones(1);
   for (i = depth - 1; i >= 0; i--) {
     dE_dG = dE_dG.array() * deriv[i].array();
-    dE_dG = dE_dG.transpose() * layers[i]->weight;
+    dE_dG = dE_dG.transpose() * layers[i].weight;
   }
 
   if (eflag) evdwl = input(0);

@@ -50,7 +50,7 @@ class PairNNP : public Pair {
   int **combinations;  // index of combination of 2 element
   char **elements;     // names of unique elements
   int *map;            // mapping from atom types to elements
-  NNP **masters;       // parameter set for an I-J-K interaction
+  vector<NNP> masters; // parameter set for an I-J-K interaction
   int nG1params, nG2params, nG4params;
   vector<vector<double> > G1params, G2params, G4params;
   int nfeature;

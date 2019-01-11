@@ -46,7 +46,7 @@ class Layer {
 class NNP {
  public:
   int depth;
-  Layer **layers;
+  vector<Layer> layers;
 
   NNP(int);
 
