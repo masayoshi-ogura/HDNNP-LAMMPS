@@ -23,6 +23,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <vector>
 #include "atom.h"
 #include "comm.h"
 #include "error.h"
@@ -109,11 +110,13 @@ void PairNNP::compute(int eflag, int vflag) {
   int itype, jtype, iparam;
   double delx, dely, delz, evdwl, fx, fy, fz, fpair;
   int *ilist, *jlist, *numneigh, **firstneigh;
-  int *iG2s, **iG3s;
+  vector<int> iG2s;
+  vector<vector<int> > iG3s;
   VectorXd R, dR[3];
   MatrixXd cos, dcos[3];
   VectorXd G, dE_dG, F[3];
-  double *G_raw, ***dG_dr_raw;
+  vector<double> G_raw;
+  vector<vector<vector<double> > > dG_dr_raw;
   MatrixXd dG_dx, dG_dy, dG_dz;
 
   evdwl = 0.0;
@@ -148,23 +151,17 @@ void PairNNP::compute(int eflag, int vflag) {
       for (int b = 0; b < jnum; b++)
         for (int c = 0; c < nfeature; c++) dG_dr_raw[a][b][c] = 0.0;
 
-    iG2s = new int[jnum];
-    iG3s = new int *[jnum];
-    for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
     feature_index(jlist, jnum, iG2s, iG3s);
     for (iparam = 0; iparam < nG1params; iparam++)
       G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, dR, G_raw,
          dG_dr_raw);
     for (iparam = 0; iparam < nG2params; iparam++)
-      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R,
-         dR, G_raw, dG_dr_raw);
+      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R, dR,
+         G_raw, dG_dr_raw);
     for (iparam = 0; iparam < nG4params; iparam++)
       G4(G4params[iparam],
          ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s, jnum,
          R, cos, dR, dcos, G_raw, dG_dr_raw);
-    delete[] iG2s;
-    for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
-    delete[] iG3s;
 
     G = Map<VectorXd>(G_raw, nfeature);
     memory->destroy(G_raw);
@@ -336,9 +333,8 @@ void PairNNP::init_style() {
    init for one type pair i,j and corresponding j,i
 ------------------------------------------------------------------------- */
 
-double PairNNP::init_one(int i, int j)
-{
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+double PairNNP::init_one(int i, int j) {
+  if (setflag[i][j] == 0) error->all(FLERR, "All pair coeffs are not set");
 
   return cutmax;
 }
@@ -590,10 +586,12 @@ void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
   memory->destroy(r_);
 }
 
-void PairNNP::feature_index(int *neighlist, int numneigh, int *iG2s,
-                            int **iG3s) {
+void PairNNP::feature_index(int *neighlist, int numneigh, vector<int> iG2s,
+                            vector<vector<int> > iG3s) {
   int i, j, itype, jtype;
   int *type = atom->type;
+  iG2s = vector<int>(numneigh);
+  iG3s = vector<vector<int>(numneigh)>(numneigh);
   for (i = 0; i < numneigh; i++) {
     itype = map[type[neighlist[i]]];
     iG2s[i] = itype;
@@ -615,13 +613,19 @@ void PairNNP::pca(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
 
 void PairNNP::scaling(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
                       MatrixXd &dG_dz) {
-  G = ((G - scl_min[type]).array() * (scl_max[type] - scl_min[type]).array().inverse() *
-          (scl_target_max - scl_target_min)).array() + scl_target_min;
-  dG_dx = dG_dx.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+  G = ((G - scl_min[type]).array() *
+       (scl_max[type] - scl_min[type]).array().inverse() *
+       (scl_target_max - scl_target_min))
+          .array() +
+      scl_target_min;
+  dG_dx = dG_dx.array().colwise() *
+          (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
-  dG_dy = dG_dy.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+  dG_dy = dG_dy.array().colwise() *
+          (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
-  dG_dz = dG_dz.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+  dG_dz = dG_dz.array().colwise() *
+          (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
 }
 
