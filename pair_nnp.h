@@ -80,7 +80,7 @@ class PairNNP : public Pair {
   typedef void (PairNNP::*FuncPtr)(int, VectorXd &, MatrixXd &, MatrixXd &,
                                    MatrixXd &);
 
-  FuncPtr *preprocesses;
+  vector<FuncPtr> preprocesses;
 
   void pca(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
 

@@ -59,8 +59,6 @@ PairNNP::~PairNNP() {
   int i, j;
   if (copymode) return;
 
-  delete[] preprocesses;
-
   if (allocated) {
     memory->destroy(cutsq);
     memory->destroy(setflag);
@@ -385,14 +383,13 @@ void PairNNP::read_file(char *file) {
   // preprocess parameters
   get_next_line(fin, ss, nwords);
   ss >> npreprocess;
-  preprocesses = new FuncPtr[npreprocess];
 
   for (i = 0; i < npreprocess; i++) {
     get_next_line(fin, ss, nwords);
     ss >> preprocess;
 
     if (preprocess == "pca") {
-      preprocesses[i] = &PairNNP::pca;
+      preprocesses.push_back(&PairNNP::pca);
       pca_transform = vector<MatrixXd>(nelements);
       pca_mean = vector<VectorXd>(nelements);
       for (j = 0; j < nelements; j++) {
@@ -419,7 +416,7 @@ void PairNNP::read_file(char *file) {
           }
       }
     } else if (preprocess == "scaling") {
-      preprocesses[i] = &PairNNP::scaling;
+      preprocesses.push_back(&PairNNP::scaling);
       scl_max = vector<VectorXd>(nelements);
       scl_min = vector<VectorXd>(nelements);
 
@@ -447,7 +444,7 @@ void PairNNP::read_file(char *file) {
           }
       }
     } else if (preprocess == "standardization") {
-      preprocesses[i] = &PairNNP::standardization;
+      preprocesses.push_back(&PairNNP::standardization);
       std_mean = vector<VectorXd>(nelements);
       std_std = vector<VectorXd>(nelements);
 
