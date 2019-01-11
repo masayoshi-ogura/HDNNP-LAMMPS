@@ -47,9 +47,9 @@ class PairNNP : public Pair {
   int nelements;               // # of unique elements
   int ntwobody;                // # of 2-body combinations
   int nthreebody;              // # of 3-body combinations
-  int **combinations;          // index of combination of 2 element
+  vector<vector<int> > combinations;  // index of combination of 2 element
   vector<string> elements;     // names of unique elements
-  int *map;                    // mapping from atom types to elements
+  vector<int> map;             // mapping from atom types to elements
   vector<NNP> masters;         // parameter set for an I-J-K interaction
   int nG1params, nG2params, nG4params;
   vector<vector<double> > G1params, G2params, G4params;

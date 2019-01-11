@@ -48,9 +48,7 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
   manybody_flag = 1;
 
   nelements = 0;
-  combinations = NULL;
   nG1params = nG2params = nG4params = 0;
-  map = NULL;
 }
 
 /* ----------------------------------------------------------------------
@@ -61,15 +59,11 @@ PairNNP::~PairNNP() {
   int i, j;
   if (copymode) return;
 
-  if (combinations)
-    for (i = 0; i < atom->ntypes; i++) delete[] combinations[i];
-  delete[] combinations;
   delete[] preprocesses;
 
   if (allocated) {
     memory->destroy(cutsq);
     memory->destroy(setflag);
-    delete[] map;
   }
 }
 
@@ -196,7 +190,7 @@ void PairNNP::allocate() {
 
   memory->create(cutsq, n + 1, n + 1, "pair:cutsq");
   memory->create(setflag, n + 1, n + 1, "pair:setflag");
-  map = new int[n + 1];
+  map = vector<int>(n + 1);
 }
 
 /* ----------------------------------------------------------------------
@@ -246,8 +240,7 @@ void PairNNP::coeff(int narg, char **arg) {
       nelements++;
     }
   }
-  combinations = new int *[ntypes];
-  for (i = 0; i < nelements; i++) combinations[i] = new int[ntypes];
+  combinations = vector<vector<int> >(ntypes, vector<int>(ntypes));
   idx = 0;
   for (i = 0; i < nelements; i++)
     for (j = i; j < nelements; j++)
