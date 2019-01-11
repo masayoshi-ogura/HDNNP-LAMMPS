@@ -115,8 +115,8 @@ void PairNNP::compute(int eflag, int vflag) {
   VectorXd R, dR[3];
   MatrixXd cos, dcos[3];
   VectorXd G, dE_dG, F[3];
-  vector<double> G_raw;
-  vector<vector<vector<double> > > dG_dr_raw;
+  double *G_raw;
+  double ***dG_dr_raw;
   MatrixXd dG_dx, dG_dy, dG_dz;
 
   evdwl = 0.0;
@@ -586,12 +586,12 @@ void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
   memory->destroy(r_);
 }
 
-void PairNNP::feature_index(int *neighlist, int numneigh, vector<int> iG2s,
-                            vector<vector<int> > iG3s) {
+void PairNNP::feature_index(int *neighlist, int numneigh, std::vector<int> &iG2s,
+                            vector< vector<int> > &iG3s) {
   int i, j, itype, jtype;
   int *type = atom->type;
   iG2s = vector<int>(numneigh);
-  iG3s = vector<vector<int>(numneigh)>(numneigh);
+  iG3s = vector<vector<int> >(numneigh, vector<int>(numneigh));
   for (i = 0; i < numneigh; i++) {
     itype = map[type[neighlist[i]]];
     iG2s[i] = itype;

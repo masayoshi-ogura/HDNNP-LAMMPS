@@ -75,7 +75,7 @@ class PairNNP : public Pair {
   void geometry(int, int *, int, VectorXd &, MatrixXd &, VectorXd *,
                 MatrixXd *);
 
-  void feature_index(int *, int, vector<int>, vector<vector<int> >);
+  void feature_index(int *, int, std::vector<int> &, vector< vector<int> > &);
 
   typedef void (PairNNP::*FuncPtr)(int, VectorXd &, MatrixXd &, MatrixXd &,
                                    MatrixXd &);
