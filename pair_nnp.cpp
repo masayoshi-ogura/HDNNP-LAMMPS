@@ -499,26 +499,23 @@ void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
   double **x = atom->x;
   MatrixXd r, dR_;
 
-  double **r_;
-  memory->create(r_, numneigh, 3, "r_");
+  r = MatrixXd(numneigh, 3);
   for (i = 0; i < numneigh; i++) {
     n = neighlist[i];
-    r_[i][0] = x[n][0] - x[cnt][0];
-    r_[i][1] = x[n][1] - x[cnt][1];
-    r_[i][2] = x[n][2] - x[cnt][2];
+    r.coeffRef(i, 0) = x[n][0] - x[cnt][0];
+    r.coeffRef(i, 1) = x[n][1] - x[cnt][1];
+    r.coeffRef(i, 2) = x[n][2] - x[cnt][2];
   }
 
-  r = Map<MatrixXd>(&r_[0][0], 3, numneigh);
-  R = r.colwise().norm();
-  dR_ = r.array().rowwise() / R.transpose().array();
-  cos.noalias() = dR_.transpose() * dR_;
+  R = r.rowwise().norm();
+  dR_ = r.array().colwise() / R.array();
+  cos.noalias() = dR_ * dR_.transpose();
   for (i = 0; i < 3; i++) {
-    dR[i] = dR_.row(i);
-    dcos[i] = (R.cwiseInverse() * dR[i].transpose()) -
-              (cos.array().colwise() * (dR[i].array() / R.array())).matrix();
+    dR[i] = dR_.col(i);
+    dcos[i] = ((cos.array().colwise() * dR[i].array() * (-1.0)).rowwise()
+               + dR[i].transpose().array()
+              ).colwise() * R.array().inverse();
   }
-
-  memory->destroy(r_);
 }
 
 void PairNNP::feature_index(int *neighlist, int numneigh, std::vector<int> &iG2s,
