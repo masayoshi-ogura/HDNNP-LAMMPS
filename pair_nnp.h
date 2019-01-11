@@ -43,14 +43,14 @@ class PairNNP : public Pair {
   virtual void init_style();
 
  protected:
-  double cutmax;       // max cutoff for all elements
-  int nelements;       // # of unique elements
-  int ntwobody;        // # of 2-body combinations
-  int nthreebody;      // # of 3-body combinations
-  int **combinations;  // index of combination of 2 element
-  char **elements;     // names of unique elements
-  int *map;            // mapping from atom types to elements
-  vector<NNP> masters; // parameter set for an I-J-K interaction
+  double cutmax;               // max cutoff for all elements
+  int nelements;               // # of unique elements
+  int ntwobody;                // # of 2-body combinations
+  int nthreebody;              // # of 3-body combinations
+  int **combinations;          // index of combination of 2 element
+  vector<string> elements;     // names of unique elements
+  int *map;                    // mapping from atom types to elements
+  vector<NNP> masters;         // parameter set for an I-J-K interaction
   int nG1params, nG2params, nG4params;
   vector<vector<double> > G1params, G2params, G4params;
   int nfeature;

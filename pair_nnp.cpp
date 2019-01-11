@@ -49,7 +49,6 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
 
   nelements = 0;
   combinations = NULL;
-  elements = NULL;
   nG1params = nG2params = nG4params = 0;
   pca_transform = NULL;
   pca_mean = NULL;
@@ -67,9 +66,6 @@ PairNNP::~PairNNP() {
   if (combinations)
     for (i = 0; i < atom->ntypes; i++) delete[] combinations[i];
   delete[] combinations;
-  if (elements)
-    for (i = 0; i < nelements; i++) delete[] elements[i];
-  delete[] elements;
   delete[] preprocesses;
   delete[] pca_transform;
   delete[] pca_mean;
@@ -224,7 +220,7 @@ void PairNNP::settings(int narg, char **arg) {
 ------------------------------------------------------------------------- */
 
 void PairNNP::coeff(int narg, char **arg) {
-  int i, j, n, idx;
+  int i, j, idx;
   int ntypes = atom->ntypes;
 
   if (!allocated) allocate();
@@ -242,12 +238,7 @@ void PairNNP::coeff(int narg, char **arg) {
   // nelements = # of unique elements
   // elements = list of element names
 
-  if (elements) {
-    for (i = 0; i < nelements; i++) delete[] elements[i];
-    delete[] elements;
-  }
-  elements = new char *[ntypes];
-  for (i = 0; i < ntypes; i++) elements[i] = NULL;
+  if (!elements.empty()) elements.clear();
 
   nelements = 0;
   for (i = 3; i < narg; i++) {
@@ -256,12 +247,10 @@ void PairNNP::coeff(int narg, char **arg) {
       continue;
     }
     for (j = 0; j < nelements; j++)
-      if (strcmp(arg[i], elements[j]) == 0) break;
+      if (string(arg[i]) == elements[j]) break;
     map[i - 2] = j;
     if (j == nelements) {
-      n = strlen(arg[i]) + 1;
-      elements[j] = new char[n];
-      strcpy(elements[j], arg[i]);
+      elements.push_back(string(arg[i]));
       nelements++;
     }
   }
