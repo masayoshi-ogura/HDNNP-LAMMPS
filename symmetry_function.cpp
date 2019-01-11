@@ -18,7 +18,7 @@ void G1(vector<double> params, int iparam, vector<int> iG2s, int numneigh,
   dg[2] = coeff.array() * dR[2].array();
 
   for (j = 0; j < numneigh; j++) {
-    if (R[j] > Rc) continue;
+    if (R.coeffRef(j) > Rc) continue;
     iG = iparam + iG2s[j];
     G.coeffRef(iG) += g.coeffRef(j);
     dG_dx.coeffRef(iG, j) += dg[0].coeffRef(j);
@@ -44,7 +44,7 @@ void G2(vector<double> params, int iparam, vector<int> iG2s, int numneigh,
   dg[2] = coeff.array() * dR[2].array();
 
   for (j = 0; j < numneigh; j++) {
-    if (R[j] > Rc) continue;
+    if (R.coeffRef(j) > Rc) continue;
     iG = iparam + iG2s[j];
     G.coeffRef(iG) += g.coeffRef(j);
     dG_dx.coeffRef(iG, j) += dg[0].coeffRef(j);
@@ -90,9 +90,9 @@ void G4(vector<double> params, int iparam, vector<vector<int> > iG3s, int numnei
           coeff2.array() * dcos[2].array();
 
   for (j = 0; j < numneigh; j++) {
-    if (R[j] > Rc) continue;
+    if (R.coeffRef(j) > Rc) continue;
     for (k = 0; k < numneigh; k++) {
-      if (R[k] > Rc) continue;
+      if (R.coeffRef(k) > Rc) continue;
       if (j == k) continue;
       iG = iparam + iG3s[j][k];
       G.coeffRef(iG) += g.coeffRef(j, k);

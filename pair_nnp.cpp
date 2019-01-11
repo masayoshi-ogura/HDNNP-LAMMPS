@@ -133,9 +133,9 @@ void PairNNP::compute(int eflag, int vflag) {
 
     for (jj = 0; jj < jnum; jj++) {
       j = jlist[jj];
-      fx = F[0](jj);
-      fy = F[1](jj);
-      fz = F[2](jj);
+      fx = F[0].coeffRef(jj);
+      fy = F[1].coeffRef(jj);
+      fz = F[2].coeffRef(jj);
       f[j][0] += -fx;
       f[j][1] += -fy;
       f[j][2] += -fz;
