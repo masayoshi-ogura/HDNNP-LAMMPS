@@ -18,12 +18,12 @@ using namespace std;
 using namespace Eigen;
 
 void G1(vector<double>, int, vector<int>, int, VectorXd &, VectorXd *,
-        vector<double> &, vector<vector<vector<double> > > &);
+        VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
 
 void G2(vector<double>, int, vector<int>, int, VectorXd &, VectorXd *,
-        vector<double> &, vector<vector<vector<double> > > &);
+        VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
 
 void G4(vector<double>, int, vector<vector<int> >, int, VectorXd &, MatrixXd &,
-        VectorXd *, MatrixXd *, vector<double> &, vector<vector<vector<double> > > &);
+        VectorXd *, MatrixXd *, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
 
 #endif  // HDNNP_LAMMPS_SYMMETRY_FUNCTION_H

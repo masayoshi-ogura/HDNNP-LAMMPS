@@ -4,8 +4,8 @@
 
 #include "symmetry_function.h"
 
-void G1(vector<double> params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
-        VectorXd *dR, vector<double> &G, vector<vector<vector<double> > > &dG_dr) {
+void G1(vector<double> params, int iparam, vector<int> iG2s, int numneigh,
+        VectorXd &R, VectorXd *dR, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy, MatrixXd &dG_dz) {
   int j, iG;
   VectorXd tanh, coeff, g, dg[3];
   double Rc = params[0];
@@ -20,15 +20,15 @@ void G1(vector<double> params, int iparam, vector<int> iG2s, int numneigh, Vecto
   for (j = 0; j < numneigh; j++) {
     if (R[j] > Rc) continue;
     iG = iparam + iG2s[j];
-    G[iG] += g(j);
-    dG_dr[0][j][iG] += dg[0](j);
-    dG_dr[1][j][iG] += dg[1](j);
-    dG_dr[2][j][iG] += dg[2](j);
+    G.coeffRef(iG) += g.coeffRef(j);
+    dG_dx.coeffRef(iG, j) += dg[0].coeffRef(j);
+    dG_dy.coeffRef(iG, j) += dg[1].coeffRef(j);
+    dG_dz.coeffRef(iG, j) += dg[2].coeffRef(j);
   }
 }
 
-void G2(vector<double> params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
-        VectorXd *dR, vector<double> &G, vector<vector<vector<double> > > &dG_dr) {
+void G2(vector<double> params, int iparam, vector<int> iG2s, int numneigh,
+        VectorXd &R, VectorXd *dR, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy, MatrixXd &dG_dz) {
   int j, iG;
   VectorXd tanh, coeff, g, dg[3];
   double Rc = params[0];
@@ -46,16 +46,16 @@ void G2(vector<double> params, int iparam, vector<int> iG2s, int numneigh, Vecto
   for (j = 0; j < numneigh; j++) {
     if (R[j] > Rc) continue;
     iG = iparam + iG2s[j];
-    G[iG] += g(j);
-    dG_dr[0][j][iG] += dg[0](j);
-    dG_dr[1][j][iG] += dg[1](j);
-    dG_dr[2][j][iG] += dg[2](j);
+    G.coeffRef(iG) += g.coeffRef(j);
+    dG_dx.coeffRef(iG, j) += dg[0].coeffRef(j);
+    dG_dy.coeffRef(iG, j) += dg[1].coeffRef(j);
+    dG_dz.coeffRef(iG, j) += dg[2].coeffRef(j);
   }
 }
 
 void G4(vector<double> params, int iparam, vector<vector<int> > iG3s, int numneigh,
         VectorXd &R, MatrixXd &cos, VectorXd *dR, MatrixXd *dcos,
-        vector<double> &G, vector<vector<vector<double> > > &dG_dr) {
+        VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy, MatrixXd &dG_dz) {
   int j, k, iG;
   double coeffs;
   VectorXd tanh, rad1, rad2;
@@ -95,10 +95,10 @@ void G4(vector<double> params, int iparam, vector<vector<int> > iG3s, int numnei
       if (R[k] > Rc) continue;
       if (j == k) continue;
       iG = iparam + iG3s[j][k];
-      G[iG] += g(j, k);
-      dG_dr[0][j][iG] += dg[0](j, k);
-      dG_dr[1][j][iG] += dg[1](j, k);
-      dG_dr[2][j][iG] += dg[2](j, k);
+      G.coeffRef(iG) += g.coeffRef(j, k);
+      dG_dx.coeffRef(iG, j) += dg[0].coeffRef(j, k);
+      dG_dy.coeffRef(iG, j) += dg[1].coeffRef(j, k);
+      dG_dz.coeffRef(iG, j) += dg[2].coeffRef(j, k);
     }
   }
 }

@@ -77,8 +77,6 @@ void PairNNP::compute(int eflag, int vflag) {
   VectorXd R, dR[3];
   MatrixXd cos, dcos[3];
   VectorXd G, dE_dG, F[3];
-  vector<double> G_raw;
-  vector<vector<vector<double> > > dG_dr_raw;
   MatrixXd dG_dx, dG_dy, dG_dz;
 
   evdwl = 0.0;
@@ -106,26 +104,22 @@ void PairNNP::compute(int eflag, int vflag) {
 
     geometry(i, jlist, jnum, R, cos, dR, dcos);
 
-    G_raw = vector<double>(nfeature, 0.0);
-    dG_dr_raw = vector<vector<vector<double> > >(3, vector<vector<double> >(jnum, vector<double>(nfeature, 0.0)));
+    G = VectorXd::Zero(nfeature);
+    dG_dx = MatrixXd::Zero(nfeature, jnum);
+    dG_dy = MatrixXd::Zero(nfeature, jnum);
+    dG_dz = MatrixXd::Zero(nfeature, jnum);
 
     feature_index(jlist, jnum, iG2s, iG3s);
     for (iparam = 0; iparam < nG1params; iparam++)
-      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, dR, G_raw,
-         dG_dr_raw);
+      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, dR, G,
+         dG_dx, dG_dy, dG_dz);
     for (iparam = 0; iparam < nG2params; iparam++)
       G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R, dR,
-         G_raw, dG_dr_raw);
+         G, dG_dx, dG_dy, dG_dz);
     for (iparam = 0; iparam < nG4params; iparam++)
       G4(G4params[iparam],
          ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s, jnum,
-         R, cos, dR, dcos, G_raw, dG_dr_raw);
-
-    G = Map<VectorXd>(&G_raw[0], nfeature);
-
-    dG_dx = Map<MatrixXd>(&dG_dr_raw[0][0][0], nfeature, jnum);
-    dG_dy = Map<MatrixXd>(&dG_dr_raw[1][0][0], nfeature, jnum);
-    dG_dz = Map<MatrixXd>(&dG_dr_raw[2][0][0], nfeature, jnum);
+         R, cos, dR, dcos, G, dG_dx, dG_dy, dG_dz);
 
     for (p = 0; p < npreprocess; p++) {
       (this->*preprocesses[p])(itype, G, dG_dx, dG_dy, dG_dz);
