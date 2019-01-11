@@ -5,7 +5,7 @@
 #include "symmetry_function.h"
 
 void G1(vector<double> params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
-        VectorXd *dR, double *G, double ***dG_dr) {
+        VectorXd *dR, vector<double> &G, vector<vector<vector<double> > > &dG_dr) {
   int j, iG;
   VectorXd tanh, coeff, g, dg[3];
   double Rc = params[0];
@@ -28,7 +28,7 @@ void G1(vector<double> params, int iparam, vector<int> iG2s, int numneigh, Vecto
 }
 
 void G2(vector<double> params, int iparam, vector<int> iG2s, int numneigh, VectorXd &R,
-        VectorXd *dR, double *G, double ***dG_dr) {
+        VectorXd *dR, vector<double> &G, vector<vector<vector<double> > > &dG_dr) {
   int j, iG;
   VectorXd tanh, coeff, g, dg[3];
   double Rc = params[0];
@@ -54,8 +54,8 @@ void G2(vector<double> params, int iparam, vector<int> iG2s, int numneigh, Vecto
 }
 
 void G4(vector<double> params, int iparam, vector<vector<int> > iG3s, int numneigh,
-        VectorXd &R, MatrixXd &cos, VectorXd *dR, MatrixXd *dcos, double *G,
-        double ***dG_dr) {
+        VectorXd &R, MatrixXd &cos, VectorXd *dR, MatrixXd *dcos,
+        vector<double> &G, vector<vector<vector<double> > > &dG_dr) {
   int j, k, iG;
   double coeffs;
   VectorXd tanh, rad1, rad2;
