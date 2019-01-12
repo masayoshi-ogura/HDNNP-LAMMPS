@@ -68,13 +68,13 @@ PairNNP::~PairNNP() {
 /* ---------------------------------------------------------------------- */
 
 void PairNNP::compute(int eflag, int vflag) {
-  int i, j, k, ii, jj, inum, jnum, p;
+  int i, j, ii, jj, inum, jnum, p;
   int itype, jtype, iparam;
-  double delx, dely, delz, evdwl, fx, fy, fz, fpair;
+  double evdwl, fx, fy, fz, delx, dely, delz;
   int *ilist, *jlist, *numneigh, **firstneigh;
   vector<int> iG2s;
   vector<vector<int> > iG3s;
-  VectorXd R, dR[3];
+  VectorXd r[3], R, dR[3];
   MatrixXd cos, dcos[3];
   VectorXd G, dE_dG, F[3];
   MatrixXd dG_dx, dG_dy, dG_dz;
@@ -88,8 +88,6 @@ void PairNNP::compute(int eflag, int vflag) {
   double **x = atom->x;
   double **f = atom->f;
   int *type = atom->type;
-  int nlocal = atom->nlocal;
-  int newton_pair = force->newton_pair;
 
   inum = list->inum;
   ilist = list->ilist;
@@ -102,7 +100,7 @@ void PairNNP::compute(int eflag, int vflag) {
     jlist = firstneigh[i];  // indices of J neighbors of I atom
     jnum = numneigh[i];     // # of J neighbors of I atom
 
-    geometry(i, jlist, jnum, R, cos, dR, dcos);
+    geometry(i, jlist, jnum, r, R, cos, dR, dcos);
 
     G = VectorXd::Zero(nfeature);
     dG_dx = MatrixXd::Zero(nfeature, jnum);
@@ -126,42 +124,26 @@ void PairNNP::compute(int eflag, int vflag) {
     }
 
     masters[itype].feedforward(G, dE_dG, eflag, evdwl);
+    evdwl *= 2.0 / jnum;
 
-    F[0].noalias() = dE_dG.transpose() * dG_dx;
-    F[1].noalias() = dE_dG.transpose() * dG_dy;
-    F[2].noalias() = dE_dG.transpose() * dG_dz;
+    F[0].noalias() = -1.0 * dE_dG.transpose() * dG_dx;
+    F[1].noalias() = -1.0 * dE_dG.transpose() * dG_dy;
+    F[2].noalias() = -1.0 * dE_dG.transpose() * dG_dz;
 
     for (jj = 0; jj < jnum; jj++) {
       j = jlist[jj];
       fx = F[0].coeffRef(jj);
       fy = F[1].coeffRef(jj);
       fz = F[2].coeffRef(jj);
-      f[j][0] += -fx;
-      f[j][1] += -fy;
-      f[j][2] += -fz;
+      delx = r[0].coeffRef(jj);
+      dely = r[1].coeffRef(jj);
+      delz = r[2].coeffRef(jj);
+      f[j][0] += fx;
+      f[j][1] += fy;
+      f[j][2] += fz;
 
-      if (evflag) {
-        delx = x[i][0] - x[j][0];
-        dely = x[i][1] - x[j][1];
-        delz = x[i][2] - x[j][2];
-        fpair = 0.0;
-        k = 0;
-        if (delx != 0.0) {
-          fpair += fx / delx;
-          k++;
-        }
-        if (dely != 0.0) {
-          fpair += fy / dely;
-          k++;
-        }
-        if (delz != 0.0) {
-          fpair += fz / delz;
-          k++;
-        }
-        fpair /= k;
-        ev_tally(i, j, nlocal, newton_pair, evdwl, 0.0, fpair, delx, dely,
-                 delz);
-      }
+      if (evflag)
+        ev_tally_xyz_full(i, evdwl, 0.0, fx, fy, fz, delx, dely, delz);
     }
   }
 
@@ -493,24 +475,25 @@ void PairNNP::setup_params() {}
 
 /* ---------------------------------------------------------------------- */
 
-void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
+void PairNNP::geometry(int i, int *jlist, int jnum, VectorXd *r, VectorXd &R,
                        MatrixXd &cos, VectorXd *dR, MatrixXd *dcos) {
-  int i, n;
+  int jj, j;
   double **x = atom->x;
-  MatrixXd r, dR_;
+  MatrixXd r_, dR_;
 
-  r = MatrixXd(numneigh, 3);
-  for (i = 0; i < numneigh; i++) {
-    n = neighlist[i];
-    r.coeffRef(i, 0) = x[n][0] - x[cnt][0];
-    r.coeffRef(i, 1) = x[n][1] - x[cnt][1];
-    r.coeffRef(i, 2) = x[n][2] - x[cnt][2];
+  r_ = MatrixXd(jnum, 3);
+  for (jj = 0; jj < jnum; jj++) {
+    j = jlist[jj];
+    r_.coeffRef(jj, 0) = x[j][0] - x[i][0];
+    r_.coeffRef(jj, 1) = x[j][1] - x[i][1];
+    r_.coeffRef(jj, 2) = x[j][2] - x[i][2];
   }
 
-  R = r.rowwise().norm();
-  dR_ = r.array().colwise() / R.array();
+  R = r_.rowwise().norm();
+  dR_ = r_.array().colwise() / R.array();
   cos.noalias() = dR_ * dR_.transpose();
   for (i = 0; i < 3; i++) {
+    r[i] = r_.col(i);
     dR[i] = dR_.col(i);
     dcos[i] = ((cos.array().colwise() * dR[i].array() * (-1.0)).rowwise()
                + dR[i].transpose().array()
@@ -518,18 +501,18 @@ void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
   }
 }
 
-void PairNNP::feature_index(int *neighlist, int numneigh, std::vector<int> &iG2s,
+void PairNNP::feature_index(int *jlist, int jnum, std::vector<int> &iG2s,
                             vector< vector<int> > &iG3s) {
   int i, j, itype, jtype;
   int *type = atom->type;
-  iG2s = vector<int>(numneigh);
-  iG3s = vector<vector<int> >(numneigh, vector<int>(numneigh));
-  for (i = 0; i < numneigh; i++) {
-    itype = map[type[neighlist[i]]];
+  iG2s = vector<int>(jnum);
+  iG3s = vector<vector<int> >(jnum, vector<int>(jnum));
+  for (i = 0; i < jnum; i++) {
+    itype = map[type[jlist[i]]];
     iG2s[i] = itype;
 
-    for (j = 0; j < numneigh; j++) {
-      jtype = map[type[neighlist[j]]];
+    for (j = 0; j < jnum; j++) {
+      jtype = map[type[jlist[j]]];
       iG3s[i][j] = combinations[itype][jtype];
     }
   }

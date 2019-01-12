@@ -75,5 +75,5 @@ void NNP::feedforward(VectorXd input, VectorXd &dE_dG, int eflag,
     dE_dG = dE_dG.transpose() * layers[i].weight;
   }
 
-  if (eflag) evdwl = input(0);
+  if (eflag) evdwl = input.coeffRef(0);
 }

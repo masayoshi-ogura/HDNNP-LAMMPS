@@ -72,7 +72,7 @@ class PairNNP : public Pair {
 
   virtual void setup_params();
 
-  void geometry(int, int *, int, VectorXd &, MatrixXd &, VectorXd *,
+  void geometry(int, int *, int, VectorXd *, VectorXd &, MatrixXd &, VectorXd *,
                 MatrixXd *);
 
   void feature_index(int *, int, std::vector<int> &, vector< vector<int> > &);
