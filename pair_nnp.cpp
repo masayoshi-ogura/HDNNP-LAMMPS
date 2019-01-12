@@ -23,6 +23,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <vector>
 #include "atom.h"
 #include "comm.h"
 #include "error.h"
@@ -47,14 +48,7 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
   manybody_flag = 1;
 
   nelements = 0;
-  combinations = NULL;
-  elements = NULL;
-  masters = NULL;
   nG1params = nG2params = nG4params = 0;
-  G1params = G2params = G4params = NULL;
-  pca_transform = NULL;
-  pca_mean = NULL;
-  map = NULL;
 }
 
 /* ----------------------------------------------------------------------
@@ -65,55 +59,24 @@ PairNNP::~PairNNP() {
   int i, j;
   if (copymode) return;
 
-  if (combinations)
-    for (i = 0; i < atom->ntypes; i++) delete[] combinations[i];
-  delete[] combinations;
-  if (elements)
-    for (i = 0; i < nelements; i++) delete[] elements[i];
-  delete[] elements;
-  if (G1params)
-    for (i = 0; i < nG1params; i++) delete[] G1params[i];
-  delete[] G1params;
-  if (G2params)
-    for (i = 0; i < nG2params; i++) delete[] G2params[i];
-  delete[] G2params;
-  if (G4params)
-    for (i = 0; i < nG4params; i++) delete[] G4params[i];
-  delete[] G4params;
-  delete[] preprocesses;
-  delete[] pca_transform;
-  delete[] pca_mean;
-  delete[] scl_max;
-  delete[] scl_min;
-  delete[] std_mean;
-  delete[] std_std;
-
-  if (masters)
-    for (i = 0; i < nelements; i++) {
-      for (j = 0; j < masters[i]->depth; j++) delete masters[i]->layers[j];
-      delete masters[i];
-    }
-  delete[] masters;
-
   if (allocated) {
     memory->destroy(cutsq);
     memory->destroy(setflag);
-    delete[] map;
   }
 }
 
 /* ---------------------------------------------------------------------- */
 
 void PairNNP::compute(int eflag, int vflag) {
-  int i, j, k, ii, jj, inum, jnum, p;
+  int i, j, ii, jj, inum, jnum, p;
   int itype, jtype, iparam;
-  double delx, dely, delz, evdwl, fx, fy, fz, fpair;
+  double evdwl, fx, fy, fz, delx, dely, delz;
   int *ilist, *jlist, *numneigh, **firstneigh;
-  int *iG2s, **iG3s;
-  VectorXd R, dR[3];
+  vector<int> iG2s;
+  vector<vector<int> > iG3s;
+  VectorXd r[3], R, dR[3];
   MatrixXd cos, dcos[3];
   VectorXd G, dE_dG, F[3];
-  double *G_raw, ***dG_dr_raw;
   MatrixXd dG_dx, dG_dy, dG_dz;
 
   evdwl = 0.0;
@@ -125,8 +88,6 @@ void PairNNP::compute(int eflag, int vflag) {
   double **x = atom->x;
   double **f = atom->f;
   int *type = atom->type;
-  int nlocal = atom->nlocal;
-  int newton_pair = force->newton_pair;
 
   inum = list->inum;
   ilist = list->ilist;
@@ -139,82 +100,50 @@ void PairNNP::compute(int eflag, int vflag) {
     jlist = firstneigh[i];  // indices of J neighbors of I atom
     jnum = numneigh[i];     // # of J neighbors of I atom
 
-    geometry(i, jlist, jnum, R, cos, dR, dcos);
+    geometry(i, jlist, jnum, r, R, cos, dR, dcos);
 
-    memory->create(G_raw, nfeature, "G");
-    memory->create(dG_dr_raw, 3, jnum, nfeature, "dG_dr");
-    for (int a = 0; a < nfeature; a++) G_raw[a] = 0.0;
-    for (int a = 0; a < 3; a++)
-      for (int b = 0; b < jnum; b++)
-        for (int c = 0; c < nfeature; c++) dG_dr_raw[a][b][c] = 0.0;
+    G = VectorXd::Zero(nfeature);
+    dG_dx = MatrixXd::Zero(nfeature, jnum);
+    dG_dy = MatrixXd::Zero(nfeature, jnum);
+    dG_dz = MatrixXd::Zero(nfeature, jnum);
 
-    iG2s = new int[jnum];
-    iG3s = new int *[jnum];
-    for (jj = 0; jj < jnum; jj++) iG3s[jj] = new int[jnum];
     feature_index(jlist, jnum, iG2s, iG3s);
     for (iparam = 0; iparam < nG1params; iparam++)
-      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, dR, G_raw,
-         dG_dr_raw);
+      G1(G1params[iparam], ntwobody * iparam, iG2s, jnum, R, dR, G,
+         dG_dx, dG_dy, dG_dz);
     for (iparam = 0; iparam < nG2params; iparam++)
-      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R,
-         dR, G_raw, dG_dr_raw);
+      G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R, dR,
+         G, dG_dx, dG_dy, dG_dz);
     for (iparam = 0; iparam < nG4params; iparam++)
       G4(G4params[iparam],
          ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s, jnum,
-         R, cos, dR, dcos, G_raw, dG_dr_raw);
-    delete[] iG2s;
-    for (jj = 0; jj < jnum; jj++) delete[] iG3s[jj];
-    delete[] iG3s;
-
-    G = Map<VectorXd>(G_raw, nfeature);
-    memory->destroy(G_raw);
-
-    dG_dx = Map<MatrixXd>(&dG_dr_raw[0][0][0], nfeature, jnum);
-    dG_dy = Map<MatrixXd>(&dG_dr_raw[1][0][0], nfeature, jnum);
-    dG_dz = Map<MatrixXd>(&dG_dr_raw[2][0][0], nfeature, jnum);
-    memory->destroy(dG_dr_raw);
+         R, cos, dR, dcos, G, dG_dx, dG_dy, dG_dz);
 
     for (p = 0; p < npreprocess; p++) {
       (this->*preprocesses[p])(itype, G, dG_dx, dG_dy, dG_dz);
     }
 
-    masters[itype]->feedforward(G, dE_dG, eflag, evdwl);
+    masters[itype].feedforward(G, dE_dG, eflag, evdwl);
+    evdwl *= 2.0 / jnum;
 
-    F[0].noalias() = dE_dG.transpose() * dG_dx;
-    F[1].noalias() = dE_dG.transpose() * dG_dy;
-    F[2].noalias() = dE_dG.transpose() * dG_dz;
+    F[0].noalias() = -1.0 * dE_dG.transpose() * dG_dx;
+    F[1].noalias() = -1.0 * dE_dG.transpose() * dG_dy;
+    F[2].noalias() = -1.0 * dE_dG.transpose() * dG_dz;
 
     for (jj = 0; jj < jnum; jj++) {
       j = jlist[jj];
-      fx = F[0](jj);
-      fy = F[1](jj);
-      fz = F[2](jj);
-      f[j][0] += -fx;
-      f[j][1] += -fy;
-      f[j][2] += -fz;
+      fx = F[0].coeffRef(jj);
+      fy = F[1].coeffRef(jj);
+      fz = F[2].coeffRef(jj);
+      delx = r[0].coeffRef(jj);
+      dely = r[1].coeffRef(jj);
+      delz = r[2].coeffRef(jj);
+      f[j][0] += fx;
+      f[j][1] += fy;
+      f[j][2] += fz;
 
-      if (evflag) {
-        delx = x[i][0] - x[j][0];
-        dely = x[i][1] - x[j][1];
-        delz = x[i][2] - x[j][2];
-        fpair = 0.0;
-        k = 0;
-        if (delx != 0.0) {
-          fpair += fx / delx;
-          k++;
-        }
-        if (dely != 0.0) {
-          fpair += fy / dely;
-          k++;
-        }
-        if (delz != 0.0) {
-          fpair += fz / delz;
-          k++;
-        }
-        fpair /= k;
-        ev_tally(i, j, nlocal, newton_pair, evdwl, 0.0, fpair, delx, dely,
-                 delz);
-      }
+      if (evflag)
+        ev_tally_xyz_full(i, evdwl, 0.0, fx, fy, fz, delx, dely, delz);
     }
   }
 
@@ -229,7 +158,7 @@ void PairNNP::allocate() {
 
   memory->create(cutsq, n + 1, n + 1, "pair:cutsq");
   memory->create(setflag, n + 1, n + 1, "pair:setflag");
-  map = new int[n + 1];
+  map = vector<int>(n + 1);
 }
 
 /* ----------------------------------------------------------------------
@@ -245,7 +174,7 @@ void PairNNP::settings(int narg, char **arg) {
 ------------------------------------------------------------------------- */
 
 void PairNNP::coeff(int narg, char **arg) {
-  int i, j, n, idx;
+  int i, j, idx;
   int ntypes = atom->ntypes;
 
   if (!allocated) allocate();
@@ -263,12 +192,7 @@ void PairNNP::coeff(int narg, char **arg) {
   // nelements = # of unique elements
   // elements = list of element names
 
-  if (elements) {
-    for (i = 0; i < nelements; i++) delete[] elements[i];
-    delete[] elements;
-  }
-  elements = new char *[ntypes];
-  for (i = 0; i < ntypes; i++) elements[i] = NULL;
+  if (!elements.empty()) elements.clear();
 
   nelements = 0;
   for (i = 3; i < narg; i++) {
@@ -277,17 +201,14 @@ void PairNNP::coeff(int narg, char **arg) {
       continue;
     }
     for (j = 0; j < nelements; j++)
-      if (strcmp(arg[i], elements[j]) == 0) break;
+      if (string(arg[i]) == elements[j]) break;
     map[i - 2] = j;
     if (j == nelements) {
-      n = strlen(arg[i]) + 1;
-      elements[j] = new char[n];
-      strcpy(elements[j], arg[i]);
+      elements.push_back(string(arg[i]));
       nelements++;
     }
   }
-  combinations = new int *[ntypes];
-  for (i = 0; i < nelements; i++) combinations[i] = new int[ntypes];
+  combinations = vector<vector<int> >(ntypes, vector<int>(ntypes));
   idx = 0;
   for (i = 0; i < nelements; i++)
     for (j = i; j < nelements; j++)
@@ -297,7 +218,6 @@ void PairNNP::coeff(int narg, char **arg) {
 
   // read potential file and initialize potential parameters
 
-  masters = new NNP *[nelements];
   read_file(arg[2]);
   setup_params();
 
@@ -336,9 +256,8 @@ void PairNNP::init_style() {
    init for one type pair i,j and corresponding j,i
 ------------------------------------------------------------------------- */
 
-double PairNNP::init_one(int i, int j)
-{
-  if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
+double PairNNP::init_one(int i, int j) {
+  if (setflag[i][j] == 0) error->all(FLERR, "All pair coeffs are not set");
 
   return cutmax;
 }
@@ -374,10 +293,10 @@ void PairNNP::read_file(char *file) {
   int i, j, k, l, nwords;
   int ntype, depth, depthnum, insize, outsize, size;
   double Rc, eta, Rs, lambda, zeta;
-  double *pca_transform_raw, *pca_mean_raw;
-  double *scl_max_raw, *scl_min_raw;
-  double *std_mean_raw, *std_std_raw;
-  double *weight, *bias;
+  vector<double> pca_transform_raw, pca_mean_raw;
+  vector<double> scl_max_raw, scl_min_raw;
+  vector<double> std_mean_raw, std_std_raw;
+  vector<double> weight, bias;
 
   if (comm->me == 0) {
     fin.open(file);
@@ -400,27 +319,32 @@ void PairNNP::read_file(char *file) {
     ss >> sym_func_type >> size;
     if (sym_func_type == "type1") {
       nG1params = size;
-      G1params = new double *[nG1params];
+      G1params = vector<vector<double> >(nG1params);
       for (j = 0; j < nG1params; j++) {
         get_next_line(fin, ss, nwords);
         ss >> Rc;
-        G1params[j] = new double[1]{Rc};
+        G1params[j].push_back(Rc);
       }
     } else if (sym_func_type == "type2") {
       nG2params = size;
-      G2params = new double *[nG2params];
+      G2params = vector<vector<double> >(nG2params);
       for (j = 0; j < nG2params; j++) {
         get_next_line(fin, ss, nwords);
         ss >> Rc >> eta >> Rs;
-        G2params[j] = new double[3]{Rc, eta, Rs};
+        G2params[j].push_back(Rc);
+        G2params[j].push_back(eta);
+        G2params[j].push_back(Rs);
       }
     } else if (sym_func_type == "type4") {
       nG4params = size;
-      G4params = new double *[nG4params];
+      G4params = vector<vector<double> >(nG4params);
       for (j = 0; j < nG4params; j++) {
         get_next_line(fin, ss, nwords);
         ss >> Rc >> eta >> lambda >> zeta;
-        G4params[j] = new double[4]{Rc, eta, lambda, zeta};
+        G4params[j].push_back(Rc);
+        G4params[j].push_back(eta);
+        G4params[j].push_back(lambda);
+        G4params[j].push_back(zeta);
       }
     }
   }
@@ -429,21 +353,20 @@ void PairNNP::read_file(char *file) {
   // preprocess parameters
   get_next_line(fin, ss, nwords);
   ss >> npreprocess;
-  preprocesses = new FuncPtr[npreprocess];
 
   for (i = 0; i < npreprocess; i++) {
     get_next_line(fin, ss, nwords);
     ss >> preprocess;
 
     if (preprocess == "pca") {
-      preprocesses[i] = &PairNNP::pca;
-      pca_transform = new MatrixXd[nelements];
-      pca_mean = new VectorXd[nelements];
+      preprocesses.push_back(&PairNNP::pca);
+      pca_transform = vector<MatrixXd>(nelements);
+      pca_mean = vector<VectorXd>(nelements);
       for (j = 0; j < nelements; j++) {
         get_next_line(fin, ss, nwords);
         ss >> element >> outsize >> insize;
-        pca_transform_raw = new double[insize * outsize];
-        pca_mean_raw = new double[insize];
+        pca_transform_raw = vector<double>(insize * outsize);
+        pca_mean_raw = vector<double>(insize);
 
         for (k = 0; k < outsize; k++) {
           get_next_line(fin, ss, nwords);
@@ -458,16 +381,14 @@ void PairNNP::read_file(char *file) {
         for (k = 0; k < nelements; k++)
           if (elements[k] == element) {
             pca_transform[k] =
-                Map<MatrixXd>(pca_transform_raw, insize, outsize).transpose();
-            pca_mean[k] = Map<VectorXd>(pca_mean_raw, insize);
+                Map<MatrixXd>(&pca_transform_raw[0], insize, outsize).transpose();
+            pca_mean[k] = Map<VectorXd>(&pca_mean_raw[0], insize);
           }
-        delete[] pca_transform_raw;
-        delete[] pca_mean_raw;
       }
     } else if (preprocess == "scaling") {
-      preprocesses[i] = &PairNNP::scaling;
-      scl_max = new VectorXd[nelements];
-      scl_min = new VectorXd[nelements];
+      preprocesses.push_back(&PairNNP::scaling);
+      scl_max = vector<VectorXd>(nelements);
+      scl_min = vector<VectorXd>(nelements);
 
       get_next_line(fin, ss, nwords);
       ss >> scl_target_max >> scl_target_min;
@@ -475,8 +396,8 @@ void PairNNP::read_file(char *file) {
       for (j = 0; j < nelements; j++) {
         get_next_line(fin, ss, nwords);
         ss >> element >> size;
-        scl_max_raw = new double[size];
-        scl_min_raw = new double[size];
+        scl_max_raw = vector<double>(size);
+        scl_min_raw = vector<double>(size);
 
         get_next_line(fin, ss, nwords);
         for (k = 0; ss >> scl_max_raw[k]; k++)
@@ -488,22 +409,20 @@ void PairNNP::read_file(char *file) {
 
         for (k = 0; k < nelements; k++)
           if (elements[k] == element) {
-            scl_max[k] = Map<VectorXd>(scl_max_raw, size);
-            scl_min[k] = Map<VectorXd>(scl_min_raw, size);
+            scl_max[k] = Map<VectorXd>(&scl_max_raw[0], size);
+            scl_min[k] = Map<VectorXd>(&scl_min_raw[0], size);
           }
-        delete[] scl_max_raw;
-        delete[] scl_min_raw;
       }
     } else if (preprocess == "standardization") {
-      preprocesses[i] = &PairNNP::standardization;
-      std_mean = new VectorXd[nelements];
-      std_std = new VectorXd[nelements];
+      preprocesses.push_back(&PairNNP::standardization);
+      std_mean = vector<VectorXd>(nelements);
+      std_std = vector<VectorXd>(nelements);
 
       for (j = 0; j < nelements; j++) {
         get_next_line(fin, ss, nwords);
         ss >> element >> size;
-        std_mean_raw = new double[size];
-        std_std_raw = new double[size];
+        std_mean_raw = vector<double>(size);
+        std_std_raw = vector<double>(size);
 
         get_next_line(fin, ss, nwords);
         for (k = 0; ss >> std_mean_raw[k]; k++)
@@ -515,11 +434,9 @@ void PairNNP::read_file(char *file) {
 
         for (k = 0; k < nelements; k++)
           if (elements[k] == element) {
-            std_mean[k] = Map<VectorXd>(std_mean_raw, size);
-            std_std[k] = Map<VectorXd>(std_std_raw, size);
+            std_mean[k] = Map<VectorXd>(&std_mean_raw[0], size);
+            std_std[k] = Map<VectorXd>(&std_std_raw[0], size);
           }
-        delete[] std_mean_raw;
-        delete[] std_std_raw;
       }
     }
   }
@@ -527,13 +444,13 @@ void PairNNP::read_file(char *file) {
   // neural network parameters
   get_next_line(fin, ss, nwords);
   ss >> depth;
-  for (i = 0; i < nelements; i++) masters[i] = new NNP(depth);
+  for (i = 0; i < nelements; i++) masters.push_back(NNP(depth));
 
   for (i = 0; i < nelements * depth; i++) {
     get_next_line(fin, ss, nwords);
     ss >> element >> depthnum >> insize >> outsize >> activation;
-    weight = new double[insize * outsize];
-    bias = new double[outsize];
+    weight = vector<double>(insize * outsize);
+    bias = vector<double>(outsize);
 
     for (j = 0; j < insize; j++) {
       get_next_line(fin, ss, nwords);
@@ -547,11 +464,7 @@ void PairNNP::read_file(char *file) {
 
     for (j = 0; j < nelements; j++)
       if (elements[j] == element)
-        masters[j]->layers[depthnum] =
-            new Layer(insize, outsize, weight, bias, activation);
-
-    delete[] weight;
-    delete[] bias;
+        masters[j].layers.push_back(Layer(insize, outsize, weight, bias, activation));
   }
   if (comm->me == 0) fin.close();
 }
@@ -562,44 +475,44 @@ void PairNNP::setup_params() {}
 
 /* ---------------------------------------------------------------------- */
 
-void PairNNP::geometry(int cnt, int *neighlist, int numneigh, VectorXd &R,
+void PairNNP::geometry(int i, int *jlist, int jnum, VectorXd *r, VectorXd &R,
                        MatrixXd &cos, VectorXd *dR, MatrixXd *dcos) {
-  int i, n;
+  int jj, j;
   double **x = atom->x;
-  MatrixXd r, dR_;
+  MatrixXd r_, dR_;
 
-  double **r_;
-  memory->create(r_, numneigh, 3, "r_");
-  for (i = 0; i < numneigh; i++) {
-    n = neighlist[i];
-    r_[i][0] = x[n][0] - x[cnt][0];
-    r_[i][1] = x[n][1] - x[cnt][1];
-    r_[i][2] = x[n][2] - x[cnt][2];
+  r_ = MatrixXd(jnum, 3);
+  for (jj = 0; jj < jnum; jj++) {
+    j = jlist[jj];
+    r_.coeffRef(jj, 0) = x[j][0] - x[i][0];
+    r_.coeffRef(jj, 1) = x[j][1] - x[i][1];
+    r_.coeffRef(jj, 2) = x[j][2] - x[i][2];
   }
 
-  r = Map<MatrixXd>(&r_[0][0], 3, numneigh);
-  R = r.colwise().norm();
-  dR_ = r.array().rowwise() / R.transpose().array();
-  cos.noalias() = dR_.transpose() * dR_;
+  R = r_.rowwise().norm();
+  dR_ = r_.array().colwise() / R.array();
+  cos.noalias() = dR_ * dR_.transpose();
   for (i = 0; i < 3; i++) {
-    dR[i] = dR_.row(i);
-    dcos[i] = (R.cwiseInverse() * dR[i].transpose()) -
-              (cos.array().colwise() * (dR[i].array() / R.array())).matrix();
+    r[i] = r_.col(i);
+    dR[i] = dR_.col(i);
+    dcos[i] = ((cos.array().colwise() * dR[i].array() * (-1.0)).rowwise()
+               + dR[i].transpose().array()
+              ).colwise() * R.array().inverse();
   }
-
-  memory->destroy(r_);
 }
 
-void PairNNP::feature_index(int *neighlist, int numneigh, int *iG2s,
-                            int **iG3s) {
+void PairNNP::feature_index(int *jlist, int jnum, std::vector<int> &iG2s,
+                            vector< vector<int> > &iG3s) {
   int i, j, itype, jtype;
   int *type = atom->type;
-  for (i = 0; i < numneigh; i++) {
-    itype = map[type[neighlist[i]]];
+  iG2s = vector<int>(jnum);
+  iG3s = vector<vector<int> >(jnum, vector<int>(jnum));
+  for (i = 0; i < jnum; i++) {
+    itype = map[type[jlist[i]]];
     iG2s[i] = itype;
 
-    for (j = 0; j < numneigh; j++) {
-      jtype = map[type[neighlist[j]]];
+    for (j = 0; j < jnum; j++) {
+      jtype = map[type[jlist[j]]];
       iG3s[i][j] = combinations[itype][jtype];
     }
   }
@@ -615,13 +528,19 @@ void PairNNP::pca(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
 
 void PairNNP::scaling(int type, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy,
                       MatrixXd &dG_dz) {
-  G = ((G - scl_min[type]).array() * (scl_max[type] - scl_min[type]).array().inverse() *
-          (scl_target_max - scl_target_min)).array() + scl_target_min;
-  dG_dx = dG_dx.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+  G = ((G - scl_min[type]).array() *
+       (scl_max[type] - scl_min[type]).array().inverse() *
+       (scl_target_max - scl_target_min))
+          .array() +
+      scl_target_min;
+  dG_dx = dG_dx.array().colwise() *
+          (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
-  dG_dy = dG_dy.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+  dG_dy = dG_dy.array().colwise() *
+          (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
-  dG_dz = dG_dz.array().colwise() * (scl_max[type] - scl_min[type]).array().inverse() *
+  dG_dz = dG_dz.array().colwise() *
+          (scl_max[type] - scl_min[type]).array().inverse() *
           (scl_target_max - scl_target_min);
 }
 

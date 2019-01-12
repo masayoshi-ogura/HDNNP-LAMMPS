@@ -11,6 +11,7 @@
 #include <Eigen/Core>
 #include <iostream>
 #include <string>
+#include <vector>
 
 using namespace std;
 using namespace Eigen;
@@ -35,7 +36,7 @@ class Layer {
   MatrixXd weight;
   VectorXd bias;
 
-  Layer(int, int, double *, double *, string);
+  Layer(int, int, vector<double> &, vector<double> &, string);
 
   ~Layer();
 
@@ -45,7 +46,7 @@ class Layer {
 class NNP {
  public:
   int depth;
-  Layer **layers;
+  vector<Layer> layers;
 
   NNP(int);
 

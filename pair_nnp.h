@@ -43,26 +43,26 @@ class PairNNP : public Pair {
   virtual void init_style();
 
  protected:
-  double cutmax;       // max cutoff for all elements
-  int nelements;       // # of unique elements
-  int ntwobody;        // # of 2-body combinations
-  int nthreebody;      // # of 3-body combinations
-  int **combinations;  // index of combination of 2 element
-  char **elements;     // names of unique elements
-  int *map;            // mapping from atom types to elements
-  NNP **masters;       // parameter set for an I-J-K interaction
+  double cutmax;               // max cutoff for all elements
+  int nelements;               // # of unique elements
+  int ntwobody;                // # of 2-body combinations
+  int nthreebody;              // # of 3-body combinations
+  vector<vector<int> > combinations;  // index of combination of 2 element
+  vector<string> elements;     // names of unique elements
+  vector<int> map;             // mapping from atom types to elements
+  vector<NNP> masters;         // parameter set for an I-J-K interaction
   int nG1params, nG2params, nG4params;
-  double **G1params, **G2params, **G4params;
+  vector<vector<double> > G1params, G2params, G4params;
   int nfeature;
   int npreprocess;
-  MatrixXd *pca_transform;
-  VectorXd *pca_mean;
-  VectorXd *scl_max;
-  VectorXd *scl_min;
+  vector<MatrixXd> pca_transform;
+  vector<VectorXd> pca_mean;
+  vector<VectorXd> scl_max;
+  vector<VectorXd> scl_min;
   double scl_target_max;
   double scl_target_min;
-  VectorXd *std_mean;
-  VectorXd *std_std;
+  vector<VectorXd> std_mean;
+  vector<VectorXd> std_std;
 
   virtual void allocate();
 
@@ -72,15 +72,15 @@ class PairNNP : public Pair {
 
   virtual void setup_params();
 
-  void geometry(int, int *, int, VectorXd &, MatrixXd &, VectorXd *,
+  void geometry(int, int *, int, VectorXd *, VectorXd &, MatrixXd &, VectorXd *,
                 MatrixXd *);
 
-  void feature_index(int *, int, int *, int **);
+  void feature_index(int *, int, std::vector<int> &, vector< vector<int> > &);
 
   typedef void (PairNNP::*FuncPtr)(int, VectorXd &, MatrixXd &, MatrixXd &,
                                    MatrixXd &);
 
-  FuncPtr *preprocesses;
+  vector<FuncPtr> preprocesses;
 
   void pca(int, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
 
