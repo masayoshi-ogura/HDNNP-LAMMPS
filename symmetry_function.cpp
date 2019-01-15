@@ -120,9 +120,9 @@ void directedG2(vector<double> params, int iparam, vector<int> iG2s, int numneig
            3.0 / Rc * (tanh.array().square() - 1.0))) *(-eta_ * (r[2].array() - Rs_).square()).exp();
 
   coeff2 = (-eta * (R.array() - Rs).square()).exp() * tanh.array().cube() * (-eta_ * (r[2].array() - Rs_).square()).exp() *
-          (-2.0 * eta_ * (r[2].array() - Rs_)) 
+          (-2.0 * eta_ * (r[2].array() - Rs_)); 
 
-np.array([0,0,1])
+
 
   dg[0] = coeff1.array() * dR[0].array();
   dg[1] = coeff1.array() * dR[1].array();
