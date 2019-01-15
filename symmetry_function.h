@@ -9,7 +9,7 @@
 #define EIGEN_NO_DEBUG
 #define EIGEN_MPL2_ONLY
 
-#include <Eigen/Core>
+#include "Eigen/Core"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -25,5 +25,8 @@ void G2(vector<double>, int, vector<int>, int, VectorXd &, VectorXd *,
 
 void G4(vector<double>, int, vector<vector<int> >, int, VectorXd &, MatrixXd &,
         VectorXd *, MatrixXd *, VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
+
+void directedG2(vector<double>, int, vector<int>, int, VectorXd &, VectorXd *, VectorXd *,
+        VectorXd &, MatrixXd &, MatrixXd &, MatrixXd &);
 
 #endif  // HDNNP_LAMMPS_SYMMETRY_FUNCTION_H

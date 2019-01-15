@@ -48,7 +48,7 @@ PairNNP::PairNNP(LAMMPS *lmp) : Pair(lmp) {
   manybody_flag = 1;
 
   nelements = 0;
-  nG1params = nG2params = nG4params = 0;
+  nG1params = nG2params = nG4params = ndirectedG2params = 0;
 }
 
 /* ----------------------------------------------------------------------
@@ -114,10 +114,14 @@ void PairNNP::compute(int eflag, int vflag) {
     for (iparam = 0; iparam < nG2params; iparam++)
       G2(G2params[iparam], ntwobody * (nG1params + iparam), iG2s, jnum, R, dR,
          G, dG_dx, dG_dy, dG_dz);
+    for (iparam = 0; iparam < ndirectedG2params; iparam++)
+      directedG2(directedG2params[iparam], ntwobody * (nG1params + nG2params + iparam), iG2s, jnum, R, dR, r,
+        G, dG_dx, dG_dy, dG_dz);
     for (iparam = 0; iparam < nG4params; iparam++)
       G4(G4params[iparam],
-         ntwobody * (nG1params + nG2params) + nthreebody * iparam, iG3s, jnum,
+         ntwobody * (nG1params + nG2params + ndirectedG2params) + nthreebody * iparam, iG3s, jnum,
          R, cos, dR, dcos, G, dG_dx, dG_dy, dG_dz);
+    
 
     for (p = 0; p < npreprocess; p++) {
       (this->*preprocesses[p])(itype, G, dG_dx, dG_dy, dG_dz);
@@ -228,6 +232,8 @@ void PairNNP::coeff(int narg, char **arg) {
     if (G2params[i][0] > cutmax) cutmax = G2params[i][0];
   for (i = 0; i < nG4params; i++)
     if (G4params[i][0] > cutmax) cutmax = G4params[i][0];
+  for (i = 0; i < ndirectedG2params; i++)
+    if (directedG2params[i][0] > cutmax) cutmax = directedG2params[i][0];
 
   for (i = 1; i < ntypes + 1; i++) {
     for (j = 1; j < ntypes + 1; j++) {
@@ -292,7 +298,7 @@ void PairNNP::read_file(char *file) {
   string sym_func_type, preprocess, element, activation;
   int i, j, k, l, nwords;
   int ntype, depth, depthnum, insize, outsize, size;
-  double Rc, eta, Rs, lambda, zeta;
+  double Rc, eta, Rs, lambda, zeta, eta_, Rs_;
   vector<double> pca_transform_raw, pca_mean_raw;
   vector<double> scl_max_raw, scl_min_raw;
   vector<double> std_mean_raw, std_std_raw;
@@ -311,6 +317,7 @@ void PairNNP::read_file(char *file) {
   nG1params = 0;
   nG2params = 0;
   nG4params = 0;
+  ndirectedG2params = 0;
   get_next_line(fin, ss, nwords);
   ss >> ntype;
 
@@ -346,9 +353,21 @@ void PairNNP::read_file(char *file) {
         G4params[j].push_back(lambda);
         G4params[j].push_back(zeta);
       }
+    } else if (sym_func_type == "directed_type2") {
+      ndirectedG2params = size;
+      directedG2params = vector<vector<double> >(ndirectedG2params);
+      for (j = 0; j < ndirectedG2params; j++) {
+        get_next_line(fin, ss, nwords);
+        ss >> Rc >> eta >> Rs >> eta_ >> Rs_;
+        directedG2params[j].push_back(Rc);
+        directedG2params[j].push_back(eta);
+        directedG2params[j].push_back(Rs);
+        directedG2params[j].push_back(eta_);
+        directedG2params[j].push_back(Rs_);
+      }
     }
   }
-  nfeature = ntwobody * (nG1params + nG2params) + nthreebody * nG4params;
+  nfeature = ntwobody * (nG1params + nG2params + ndirectedG2params) + nthreebody * nG4params;
 
   // preprocess parameters
   get_next_line(fin, ss, nwords);

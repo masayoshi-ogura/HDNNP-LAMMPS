@@ -51,8 +51,8 @@ class PairNNP : public Pair {
   vector<string> elements;     // names of unique elements
   vector<int> map;             // mapping from atom types to elements
   vector<NNP> masters;         // parameter set for an I-J-K interaction
-  int nG1params, nG2params, nG4params;
-  vector<vector<double> > G1params, G2params, G4params;
+  int nG1params, nG2params, nG4params, ndirectedG2params;
+  vector<vector<double> > G1params, G2params, G4params, directedG2params;
   int nfeature;
   int npreprocess;
   vector<MatrixXd> pca_transform;

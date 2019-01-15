@@ -102,3 +102,38 @@ void G4(vector<double> params, int iparam, vector<vector<int> > iG3s, int numnei
     }
   }
 }
+
+void directedG2(vector<double> params, int iparam, vector<int> iG2s, int numneigh,
+        VectorXd &R, VectorXd *dR, VectorXd *r, VectorXd &G, MatrixXd &dG_dx, MatrixXd &dG_dy, MatrixXd &dG_dz) {
+  int j, iG;
+  VectorXd tanh, coeff1, coeff2, g, dg[3];
+  double Rc = params[0];
+  double eta = params[1];
+  double Rs = params[2];
+  double eta_ = params[3];
+  double Rs_ = params[4];
+
+  tanh = (1.0 - R.array() / Rc).tanh();
+  g = (-eta * (R.array() - Rs).square()).exp() * tanh.array().cube() * (-eta_ * (r[2].array() - Rs_).square()).exp();
+  coeff1 = ((-eta * (R.array() - Rs).square()).exp() * tanh.array().square() *
+          (-2.0 * eta * (R.array() - Rs) * tanh.array() +
+           3.0 / Rc * (tanh.array().square() - 1.0))) *(-eta_ * (r[2].array() - Rs_).square()).exp();
+
+  coeff2 = (-eta * (R.array() - Rs).square()).exp() * tanh.array().cube() * (-eta_ * (r[2].array() - Rs_).square()).exp() *
+          (-2.0 * eta_ * (r[2].array() - Rs_)) 
+
+np.array([0,0,1])
+
+  dg[0] = coeff1.array() * dR[0].array();
+  dg[1] = coeff1.array() * dR[1].array();
+  dg[2] = (coeff1.array() + coeff2.array()) * dR[2].array();
+
+  for (j = 0; j < numneigh; j++) {
+    if (R.coeffRef(j) > Rc) continue;
+    iG = iparam + iG2s[j];
+    G.coeffRef(iG) += g.coeffRef(j);
+    dG_dx.coeffRef(iG, j) += dg[0].coeffRef(j);
+    dG_dy.coeffRef(iG, j) += dg[1].coeffRef(j);
+    dG_dz.coeffRef(iG, j) += dg[2].coeffRef(j);
+  }
+}

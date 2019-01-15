@@ -8,7 +8,7 @@
 #define EIGEN_NO_DEBUG
 #define EIGEN_MPL2_ONLY
 
-#include <Eigen/Core>
+#include "Eigen/Core"
 #include <iostream>
 #include <string>
 #include <vector>
