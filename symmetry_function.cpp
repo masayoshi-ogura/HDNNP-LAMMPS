@@ -126,7 +126,7 @@ void directedG2(vector<double> params, int iparam, vector<int> iG2s, int numneig
 
   dg[0] = coeff1.array() * dR[0].array();
   dg[1] = coeff1.array() * dR[1].array();
-  dg[2] = (coeff1.array() + coeff2.array()) * dR[2].array();
+  dg[2] = coeff1.array() * dR[2].array() + coeff2.array();
 
   for (j = 0; j < numneigh; j++) {
     if (R.coeffRef(j) > Rc) continue;
