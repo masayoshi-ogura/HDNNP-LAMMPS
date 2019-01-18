@@ -130,9 +130,9 @@ void PairBORN::compute(int eflag, int vflag) {
     masters[itype].feedforward(G, dE_dG, eflag, evdwl);
     evdwl *= 2.0 / jnum;
 
-    F[0].noalias() = -1.0 * dE_dG.transpose() * dG_dx;
-    F[1].noalias() = -1.0 * dE_dG.transpose() * dG_dy;
-    F[2].noalias() = -1.0 * dE_dG.transpose() * dG_dz;
+    F[0].noalias() = 0.01 * 1.0 * dE_dG.transpose() * dG_dx;
+    F[1].noalias() = 0.01 * 1.0 * dE_dG.transpose() * dG_dy;
+    F[2].noalias() = 0.01 * 1.0 * dE_dG.transpose() * dG_dz;
 
     for (jj = 0; jj < jnum; jj++) {
       j = jlist[jj];

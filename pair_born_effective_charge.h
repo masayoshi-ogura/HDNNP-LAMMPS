@@ -13,12 +13,12 @@
 
 #ifdef PAIR_CLASS
 
-PairStyle(Born, PairBorn)
+PairStyle(Born, PairBORN)
 
 #else
 
-#ifndef LMP_PAIR_NNP_H
-#define LMP_PAIR_NNP_H
+#ifndef LMP_PAIR_BORN_H
+#define LMP_PAIR_BORN_H
 
 #include "neural_network_potential.h"
 #include "pair.h"
@@ -26,11 +26,11 @@ PairStyle(Born, PairBorn)
 
 namespace LAMMPS_NS {
 
-class PairBorn : public Pair {
+class PairBORN : public Pair {
  public:
-  PairBorn(class LAMMPS *);
+  PairBORN(class LAMMPS *);
 
-  virtual ~PairBorn();
+  virtual ~PairBORN();
 
   virtual void compute(int, int);
 
@@ -77,7 +77,7 @@ class PairBorn : public Pair {
 
   void feature_index(int *, int, std::vector<int> &, vector< vector<int> > &);
 
-  typedef void (PairNNP::*FuncPtr)(int, VectorXd &, MatrixXd &, MatrixXd &,
+  typedef void (PairBORN::*FuncPtr)(int, VectorXd &, MatrixXd &, MatrixXd &,
                                    MatrixXd &);
 
   vector<FuncPtr> preprocesses;
